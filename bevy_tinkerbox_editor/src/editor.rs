@@ -15,6 +15,7 @@ use bevy::{
         FocusedInput, InputFocus,
         tab_navigation::{TabGroup, TabNavigationPlugin},
     },
+    log::tracing_subscriber::registry,
     platform::collections::HashSet,
     prelude::*,
     reflect::{
@@ -53,6 +54,12 @@ pub(super) fn plugin(app: &mut App) {
     );
 }
 
+fn as_bundle(bundle: impl Bundle) -> SpawnWith<impl FnOnce(&mut RelatedSpawner<ChildOf>)> {
+    SpawnWith(|p: &mut RelatedSpawner<ChildOf>| {
+        p.spawn(bundle);
+    })
+}
+
 pub fn spawn_editor(
     mut commands: Commands,
     reg: Res<AppTypeRegistry>,
@@ -75,105 +82,68 @@ pub fn spawn_editor(
         BackgroundColor(Color::NONE),
         UiTargetCamera(q.single().unwrap()),
         TabGroup::default(),
-        //DespawnOnExit(ActiveEditor),
-        Children::spawn((Spawn((
+        children![(
             Node {
                 flex_direction: FlexDirection::Row,
                 ..default()
             },
-            Children::spawn((
-                Spawn(scroll_area_demo(SpawnWith(
-                    |p: &mut RelatedSpawner<'_, ChildOf>| {
-                        p.spawn((
-                            Node {
-                                flex_direction: FlexDirection::Column,
-                                ..default()
-                            },
-                            Children::spawn(Spawn((
-                                Node {
-                                    display: Display::Grid,
-                                    ..default()
-                                },
-                                SelectedEntityUiRoot,
-                            ))),
-                        ));
+            children![
+                scroll_area_demo(as_bundle((
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        ..default()
                     },
+                    children![(
+                        Node {
+                            display: Display::Grid,
+                            ..default()
+                        },
+                        SelectedEntityUiRoot,
+                    )],
                 ))),
-                Spawn((
+                (
                     Node {
                         flex_direction: FlexDirection::Column,
                         row_gap: px(3),
                         ..default()
                     },
-                    Children::spawn((
-                        Spawn((
-                            Node {
-                                flex_direction: FlexDirection::Column,
-                                row_gap: px(3),
-                                ..default()
-                            },
-                            BackgroundColor(colors::gry_nut().into()),
-                            BorderRadius::all(px(3)),
-                            Children::spawn((
-                                Spawn(centered((
-                                    Text::new("Add Components"),
-                                    TextFont {
-                                        font_size: 11.0,
-                                        ..default()
-                                    },
-                                ))),
-                                Spawn((
-                                    Node {
-                                        justify_content: JustifyContent::Center,
-                                        ..default()
-                                    },
-                                    Children::spawn(Spawn(filter_with_prompt(
-                                        "Filter",
-                                        SceneEditorComponentFilter,
-                                    ))),
-                                )),
-                                Spawn(scroll_area_demo(spawn_component_entries(reg.clone()))),
-                            )),
-                        )),
-                        SpawnWith(|parent: &mut RelatedSpawner<'_, ChildOf>| {
-                            let me = parent
-                                .spawn((
-                                    Node {
-                                        width: px(250),
-                                        align_content: AlignContent::Center,
-                                        justify_content: JustifyContent::Center,
-                                        ..default()
-                                    },
-                                    children![],
-                                ))
-                                .id();
-
-                            parent.spawn(Observer::new(
-                                move |event: On<ComponentPreSelection>,
-                                      mut commands: Commands,
-                                      world: DeferredWorld| {
-                                    let reg = world.resource::<AppTypeRegistry>();
-                                    let preview =
-                                        component_preview(me, event.type_of, &reg, &world);
-                                    match preview {
-                                        Some(selection) => {
-                                            let kid = commands
-                                                .spawn(component_selection_widget(selection))
-                                                .id();
-                                            commands.entity(me).despawn_children().add_child(kid);
-                                        }
-                                        _ => {
-                                            commands.entity(me).despawn_children();
-                                        }
-                                    };
-                                },
-                            ));
-                        }),
-                    )),
-                )),
-            )),
-        )),)),
+                    children![component_browser_widget(&reg)],
+                ),
+            ],
+        )],
     ));
+}
+
+fn component_browser_widget(reg: &AppTypeRegistry) -> impl Bundle {
+    (
+        Node {
+            flex_direction: FlexDirection::Column,
+            row_gap: px(3),
+            ..default()
+        },
+        BackgroundColor(colors::gry_nut().into()),
+        BorderRadius::all(px(3)),
+        Children::spawn((
+            Spawn(centered((
+                Text::new("Add Components"),
+                TextFont {
+                    font_size: 11.0,
+                    ..default()
+                },
+            ))),
+            Spawn((
+                Node {
+                    justify_content: JustifyContent::Center,
+                    ..default()
+                },
+                Children::spawn(Spawn(filter_with_prompt(
+                    "Filter",
+                    SceneEditorComponentFilter,
+                ))),
+            )),
+            Spawn(scroll_area_demo(spawn_component_entries(reg.clone()))),
+        )),
+    )
 }
 
 fn hide_filtered_components(
@@ -237,7 +207,25 @@ fn spawn_component_entries(
                             .entity(source.event_target())
                             .get::<ComponentSubject>()
                         {
-                            commands.trigger(ComponentPreSelection { type_of: t_id.0 });
+                            let r = world.resource::<AppTypeRegistry>();
+                            let registry = r.read();
+                            let name = registry
+                                .get(t_id.0)
+                                .map(|x| x.type_info().type_path_table().short_path())
+                                .unwrap_or("");
+                            let mut required: Vec<(TypeId, &'static str)> = Vec::new();
+                            for val in world.required_components(t_id.0) {
+                                let v_name = registry
+                                    .get(val)
+                                    .map(|e| e.type_info().type_path_table().short_path())
+                                    .unwrap_or("");
+                                required.push((val.clone(), v_name.into()))
+                            }
+                            commands.trigger(ComponentSelection {
+                                entity: source.event_target(),
+                                base: (t_id.0, name),
+                                required,
+                            });
                         }
                     },
                 ),
@@ -262,116 +250,11 @@ pub struct ComponentSubject(pub TypeId);
 #[derive(Component)]
 pub struct SceneEditorComponentFilter;
 
-#[derive(Event)]
-struct ComponentPreSelection {
-    type_of: TypeId,
-}
-
 #[derive(Component, Clone, EntityEvent)]
 pub struct ComponentSelection {
     pub entity: Entity,
     pub base: (TypeId, &'static str),
     pub required: Vec<(TypeId, &'static str)>,
-}
-
-fn component_preview(
-    entity: Entity,
-    id: TypeId,
-    reg: &AppTypeRegistry,
-    world: &DeferredWorld,
-) -> Option<ComponentSelection> {
-    let registry = reg.read();
-    let Some(type_registration) = registry.get(id) else {
-        return None;
-    };
-    let name = type_registration.type_info().type_path_table().short_path();
-    let mut required: Vec<(TypeId, &'static str)> = Vec::new();
-    for val in world.required_components(id) {
-        let v_name = registry
-            .get(val)
-            .map(|e| e.type_info().type_path_table().short_path())
-            .unwrap_or("");
-        required.push((val.clone(), v_name.into()))
-    }
-
-    Some(ComponentSelection {
-        entity,
-        base: (id, name.into()),
-        required: required,
-    })
-}
-fn component_selection_widget(selection: ComponentSelection) -> impl Bundle {
-    (
-        Node {
-            flex_direction: FlexDirection::Column,
-            border: UiRect::all(px(10)),
-            ..default()
-        },
-        //BackgroundColor(Srgba::BLUE.into()),
-        BorderColor::all(Srgba::RED),
-        selection.clone(),
-        children![
-            (
-                centered(text_row(selection.base.1)),
-                selection.clone(),
-                observe(
-                    |src: On<Pointer<Click>>, world: DeferredWorld, mut commands: Commands| {
-                        if let Some(in_a_bottle) =
-                            world.entity(src.event_target()).get::<ComponentSelection>()
-                        {
-                            commands.trigger(in_a_bottle.clone());
-                        }
-                    }
-                )
-            ),
-            (
-                Node {
-                    display: Display::Grid,
-                    grid_template_columns: vec![
-                        RepeatedGridTrack::min_content(1),
-                        RepeatedGridTrack::px(1, 12.)
-                    ],
-                    column_gap: px(2),
-
-                    ..default()
-                },
-                Children::spawn((
-                    Spawn((
-                        Node {
-                            grid_column: GridPlacement::span(2),
-                            grid_row: GridPlacement::start(1),
-                            ..default()
-                        },
-                        text_row(format!("Required: {:?}", selection.required.len()).as_str()),
-                    )),
-                    SpawnWith(move |p: &mut RelatedSpawner<'_, ChildOf>| {
-                        let mut inc = 2;
-                        for (_, kid_name) in selection.required.iter() {
-                            p.spawn((
-                                Node {
-                                    display: Display::Grid,
-                                    grid_column: GridPlacement::start(1),
-                                    grid_row: GridPlacement::start(inc),
-                                    ..default()
-                                },
-                                text_row(kid_name),
-                            ));
-                            p.spawn((
-                                Node {
-                                    display: Display::Grid,
-                                    grid_column: GridPlacement::start(2),
-                                    grid_row: GridPlacement::start(inc),
-                                    ..default()
-                                },
-                                text_row("✅"),
-                            ));
-                            inc = inc + 1;
-                        }
-                    })
-                ))
-            )
-        ],
-    )
 }
 
 //TODO - This should eventually represent some concept of displayed and actively edited serialization targets
@@ -1624,8 +1507,6 @@ fn instantiate_or_die(
             Err(format!("ReflectDefault not implemented for {name}"))
         }
     }
-
-    //Err("lol. lmao.".to_string())
 }
 
 fn manually_registering_trait_data_for_fun_and_profit(reg: ResMut<AppTypeRegistry>) {
