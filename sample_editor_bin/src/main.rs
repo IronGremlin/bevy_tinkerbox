@@ -10,11 +10,7 @@ fn main() -> AppExit {
         .add_systems(Startup, setup)
         .add_systems(
             PostStartup,
-            (
-                bevy_tinkerbox_editor::editor::update_req_component_map,
-                bevy_tinkerbox_editor::editor::spawn_editor,
-            )
-                .chain(),
+            (bevy_tinkerbox_editor::editor::spawn_editor,).chain(),
         )
         .run()
 }

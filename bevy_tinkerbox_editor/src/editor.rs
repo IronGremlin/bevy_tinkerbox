@@ -4,7 +4,6 @@ use std::{any::TypeId, marker::Send};
 use bevy::{
     asset::ron::{self, Deserializer},
     ecs::{
-        component::{ComponentId, ComponentInfo, Components},
         lifecycle::HookContext,
         reflect::ReflectCommandExt,
         relationship::{RelatedSpawner, Relationship},
@@ -25,7 +24,6 @@ use bevy::{
         serde::{ReflectDeserializer, TypedReflectSerializer},
     },
     ui_widgets::{ScrollbarPlugin, observe},
-    utils::TypeIdMap,
 };
 use bevy_ui_text_input::{
     TextInputBuffer, TextInputMode, TextInputNode, TextInputPlugin, TextInputStyle,
@@ -40,16 +38,11 @@ use crate::{
 
 pub(super) fn plugin(app: &mut App) {
     app.add_plugins((TextInputPlugin, TabNavigationPlugin, ScrollbarPlugin));
-    app.init_resource::<RequiredComponentMap>();
     app.init_resource::<AppTypeRegistry>();
 
     app.add_systems(
         PreStartup,
-        (
-            update_req_component_map,
-            manually_registering_trait_data_for_fun_and_profit,
-        )
-            .chain(),
+        (manually_registering_trait_data_for_fun_and_profit,).chain(),
     );
     app.add_observer(root);
     app.add_observer(component_ui_initializer);
@@ -89,20 +82,23 @@ pub fn spawn_editor(
                 ..default()
             },
             Children::spawn((
-                Spawn(scroll_area_demo(SpawnWith(|p: &mut RelatedSpawner<'_, ChildOf>| {
-                    p.spawn((Node {
-                        flex_direction: FlexDirection::Column,
-                        ..default()
+                Spawn(scroll_area_demo(SpawnWith(
+                    |p: &mut RelatedSpawner<'_, ChildOf>| {
+                        p.spawn((
+                            Node {
+                                flex_direction: FlexDirection::Column,
+                                ..default()
+                            },
+                            Children::spawn(Spawn((
+                                Node {
+                                    display: Display::Grid,
+                                    ..default()
+                                },
+                                SelectedEntityUiRoot,
+                            ))),
+                        ));
                     },
-                    Children::spawn(Spawn((
-                        Node {
-                        display: Display::Grid,
-                        ..default()
-                        },
-                        SelectedEntityUiRoot)))));
-                }))),
-
-
+                ))),
                 Spawn((
                     Node {
                         flex_direction: FlexDirection::Column,
@@ -145,7 +141,7 @@ pub fn spawn_editor(
                                     Node {
                                         width: px(250),
                                         align_content: AlignContent::Center,
-                                        justify_content:JustifyContent::Center,
+                                        justify_content: JustifyContent::Center,
                                         ..default()
                                     },
                                     children![],
@@ -155,18 +151,21 @@ pub fn spawn_editor(
                             parent.spawn(Observer::new(
                                 move |event: On<ComponentPreSelection>,
                                       mut commands: Commands,
-                                      reg: Res<AppTypeRegistry>,
-                                      map: Res<RequiredComponentMap>| {
-                                          let preview = component_preview(me,event.type_of, reg, map);
-                                          match preview {
-                                              Some(selection) => {
-                                                  let kid = commands.spawn(component_selection_widget(selection)).id();
-                                                  commands.entity(me).despawn_children().add_child(kid);
-                                              },
-                                              _ => {
-                                                  commands.entity(me).despawn_children();
-                                              }
-                                          };
+                                      world: DeferredWorld| {
+                                    let reg = world.resource::<AppTypeRegistry>();
+                                    let preview =
+                                        component_preview(me, event.type_of, &reg, &world);
+                                    match preview {
+                                        Some(selection) => {
+                                            let kid = commands
+                                                .spawn(component_selection_widget(selection))
+                                                .id();
+                                            commands.entity(me).despawn_children().add_child(kid);
+                                        }
+                                        _ => {
+                                            commands.entity(me).despawn_children();
+                                        }
+                                    };
                                 },
                             ));
                         }),
@@ -208,13 +207,13 @@ fn spawn_component_entries(
                 if entry.data::<ReflectDefault>().is_none() {
                     (
                         Srgba::new(0.2, 0.15, 0.15, 1.0).into(),
-                        " | no ReflectDefault impl",
+                        "no ReflectDefault impl",
                     )
                 } else {
                     (colors::gry_nut().into(), "")
                 };
             let name = format!(
-                "{}{}",
+                "{} | {}",
                 entry.type_info().type_path_table().short_path(),
                 warning
             );
@@ -257,44 +256,6 @@ fn spawn_component_entries(
         }
     })
 }
-type RequirementsMap = TypeIdMap<Vec<TypeId>>;
-#[derive(Resource)]
-pub struct RequiredComponentMap(TypeIdMap<Vec<TypeId>>);
-impl RequiredComponentMap {
-    fn new(components: &Components) -> Self {
-        let mut map: TypeIdMap<_> = RequirementsMap::default();
-        info!(
-            "Filling requirement data for {:?} registered components...",
-            components.len()
-        );
-        for c in components.iter_registered() {
-            let mut reqs = Vec::default();
-            for rcid in c.required_components().iter_ids() {
-                let Some(info) = components.get_info(rcid) else {
-                    info!("Missing registration data for some component {:?}", rcid);
-                    continue;
-                };
-                let Some(r_type_id) = info.type_id() else {
-                    info!("Missing type_id some component {:?}", rcid);
-                    continue;
-                };
-                reqs.push(r_type_id);
-            }
-            map.insert(c.type_id().unwrap(), reqs);
-        }
-        RequiredComponentMap(map)
-    } //,
-}
-impl FromWorld for RequiredComponentMap {
-    fn from_world(world: &mut World) -> Self {
-        Self::new(world.components())
-    }
-}
-pub fn update_req_component_map(w: &mut World) {
-    w.resource_scope(|world: &mut World, mut req: Mut<RequiredComponentMap>| {
-        *req = RequiredComponentMap::new(&world.components());
-    });
-}
 
 #[derive(Component)]
 pub struct ComponentSubject(pub TypeId);
@@ -316,8 +277,8 @@ pub struct ComponentSelection {
 fn component_preview(
     entity: Entity,
     id: TypeId,
-    reg: Res<AppTypeRegistry>,
-    map: Res<RequiredComponentMap>,
+    reg: &AppTypeRegistry,
+    world: &DeferredWorld,
 ) -> Option<ComponentSelection> {
     let registry = reg.read();
     let Some(type_registration) = registry.get(id) else {
@@ -325,9 +286,9 @@ fn component_preview(
     };
     let name = type_registration.type_info().type_path_table().short_path();
     let mut required: Vec<(TypeId, &'static str)> = Vec::new();
-    for val in map.0.get(&id).unwrap_or(&Vec::new()) {
+    for val in world.required_components(id) {
         let v_name = registry
-            .get(*val)
+            .get(val)
             .map(|e| e.type_info().type_path_table().short_path())
             .unwrap_or("");
         required.push((val.clone(), v_name.into()))
@@ -432,6 +393,25 @@ pub struct ComponentUiFor {
 #[relationship_target(relationship = ComponentUiFor)]
 pub struct ComponentUisFor(Vec<Entity>);
 
+pub trait WorldRequiredComponentExtension {
+    fn required_components(&self, component: TypeId) -> Vec<TypeId>;
+}
+impl WorldRequiredComponentExtension for World {
+    fn required_components(&self, component: TypeId) -> Vec<TypeId> {
+        self.components()
+            .get_valid_id(component)
+            .and_then(|c_id| self.components().get_info(c_id))
+            .map(|c_info| {
+                c_info
+                    .required_components()
+                    .iter_ids()
+                    .filter_map(|c_id| self.components().get_info(c_id).and_then(|n| n.type_id()))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+}
+
 pub(crate) fn root(
     source: On<ComponentSelection>,
     mut dworld: DeferredWorld,
@@ -443,7 +423,6 @@ pub(crate) fn root(
     let window_root = dworld.query(&mut q).single().unwrap();
 
     let reg = dworld.resource::<AppTypeRegistry>();
-    let req_components = dworld.resource::<RequiredComponentMap>();
 
     // We're potentially going to make a bunch of edits here so lets get a clone of our component to work with.
     //
@@ -471,44 +450,8 @@ pub(crate) fn root(
 
     let mut type_ids: Vec<TypeId> = Vec::new();
     type_ids.push(type_id);
-    let mut reqs = req_components
-        .0
-        .get(&type_id)
-        .map(|n| n.clone())
-        .unwrap_or(Vec::new());
+    let reqs = dworld.required_components(type_id);
     let r = reg.read();
-    info!(
-        "Adding some component {:?} with {:?} required",
-        r.get(type_id)
-            .map(|x| x.type_info().type_path_table().short_path())
-            .unwrap_or("<<Unknown>>"),
-        reqs.len()
-    );
-    dworld
-        .components()
-        .get_valid_id(type_id)
-        .and_then(|c_id| dworld.components().get_info(c_id))
-        .and_then(|c_info| {
-            let req_comp: Vec<ComponentId> = c_info.required_components().iter_ids().collect();
-
-            info!(
-                "World components thinks we have {:?} required",
-                req_comp.len()
-            );
-            if reqs.len() != req_comp.len() {
-                //TODO - this is real dumb - do we even need a req components map anyway?
-                info!("World disagrees...");
-                let mut our_reqs = Vec::new();
-                for x in req_comp {
-                    if let Some(req_info) = dworld.components().get_info(x) {
-                        our_reqs.push(req_info.type_id().unwrap());
-                    };
-                }
-
-                reqs = our_reqs;
-            };
-            None::<ComponentInfo>
-        });
 
     for component_type_id in vec![type_ids, reqs].iter().flatten() {
         let registry = reg.read();
