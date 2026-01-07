@@ -1,0 +1,10 @@
+[workspace]
+members = ["sample_project_lib","sample_project_bin", "bevy_tinkerbox_editor", "sample_editor_bin"]
+resolver = "3"
+
+[workspace.dependencies]
+bevy = "0.17.3"
+bevy_ui_text_input = "0.6.0"
+cosmic-text = "0.14.0"
+rand = "0.9"
+serde = "1.0.228"
