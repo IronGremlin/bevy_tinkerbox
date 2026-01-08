@@ -15,7 +15,6 @@ use bevy::{
         FocusedInput, InputFocus,
         tab_navigation::{TabGroup, TabNavigationPlugin},
     },
-    log::tracing_subscriber::registry,
     platform::collections::HashSet,
     prelude::*,
     reflect::{
@@ -48,6 +47,7 @@ pub(super) fn plugin(app: &mut App) {
     app.add_observer(root);
     app.add_observer(component_ui_initializer);
     app.add_observer(on_update_event_dynamic);
+    app.add_observer(close_component_browser_on_select);
     app.add_systems(
         Update,
         (hide_filtered_components, transform_editor_presentation),
@@ -58,6 +58,128 @@ fn as_bundle(bundle: impl Bundle) -> SpawnWith<impl FnOnce(&mut RelatedSpawner<C
     SpawnWith(|p: &mut RelatedSpawner<ChildOf>| {
         p.spawn(bundle);
     })
+}
+fn add_entity_button() -> impl Bundle {
+    (
+        Node {
+            flex_direction: FlexDirection::Row,
+            column_gap: px(16.),
+            ..default()
+        },
+        observe(add_entity_on_click),
+        children![
+            Text::new("Add Entity"),
+            (
+                Name::new("Add Entity Button"),
+                Node {
+                    width: px(32.),
+                    height: px(32.),
+                    ..default()
+                },
+                ImageNodeSansHandle::from_path("lucide/package-plus-white.png".to_owned())
+            ),
+        ],
+    )
+}
+fn make_new_entity_ui(entity: Entity) -> impl Bundle {
+    scroll_area_demo(as_bundle((
+        Node {
+            display: Display::Grid,
+            ..default()
+        },
+        EntityUiRoot {
+            component_holder: entity,
+            desired_component_set: HashSet::new(),
+        },
+        observe(add_component_button_on_click),
+        children![(
+            Node {
+                flex_direction: FlexDirection::Row,
+                column_gap: px(12.),
+                ..default()
+            },
+            children![
+                Text::new(format!("Entity({:?})", entity)),
+                (
+                    Name::new("Entity"),
+                    Node {
+                        width: px(24.),
+                        height: px(24.),
+                        ..default()
+                    },
+                    ImageNodeSansHandle::from_path("lucide/list-plus-white.png".to_owned()),
+                    observe(|src: On<Pointer<Click>>, mut commands: Commands| {
+                        //eat clicks from children
+                        if src.event_target() != src.original_event_target() {
+                            return;
+                        }
+                        commands.trigger(ComponentBrowserOpenRequest {
+                            entity: src.event_target(),
+                        });
+                    }),
+                ),
+            ]
+        )],
+    )))
+}
+
+fn add_entity_on_click(
+    _: On<Pointer<Click>>,
+    mut commands: Commands,
+    find_anchor: Query<Entity, With<SelectedEntityUiRoot>>,
+) {
+    let Ok(anchor) = find_anchor.single() else {
+        return;
+    };
+    let world_target = commands.spawn_empty().id();
+    let new_entity_ui = commands.spawn_empty().id();
+    commands.entity(anchor).add_child(new_entity_ui);
+    commands
+        .entity(new_entity_ui)
+        .insert(make_new_entity_ui(world_target));
+}
+
+#[derive(Component)]
+struct ComponentBrowserWidgetRoot;
+#[derive(EntityEvent)]
+#[entity_event(propagate)]
+#[entity_event(auto_propagate)]
+struct ComponentBrowserOpenRequest {
+    entity: Entity,
+}
+
+fn add_component_button_on_click(
+    source: On<ComponentBrowserOpenRequest>,
+    mut commands: Commands,
+    reg: Res<AppTypeRegistry>,
+    find_component_ui_anchor: Query<Entity, With<EntityUiRoot>>,
+    find_browser_widget_anchor: Query<Entity, With<ComponentBrowserWidgetRoot>>,
+) {
+    // We're only interested in events from our child button
+    if source.event_target() == source.original_event_target() {
+        return;
+    }
+    let Ok(c_anchor) = find_component_ui_anchor.get(source.event_target()) else {
+        return;
+    };
+    let Ok(b_anchor) = find_browser_widget_anchor.single() else {
+        return;
+    };
+    commands
+        .entity(b_anchor)
+        .despawn_children()
+        .with_child(component_browser_widget(&reg, c_anchor));
+}
+
+fn close_component_browser_on_select(
+    _: On<ComponentSelection>,
+    mut commands: Commands,
+    find_component_browser_anchor: Query<Entity, With<ComponentBrowserWidgetRoot>>,
+) {
+    let Ok(anchor) = find_component_browser_anchor.single() else {
+        return;
+    };
+    commands.entity(anchor).despawn_children();
 }
 
 pub fn spawn_editor(
@@ -93,13 +215,16 @@ pub fn spawn_editor(
                         flex_direction: FlexDirection::Column,
                         ..default()
                     },
-                    children![(
-                        Node {
-                            display: Display::Grid,
-                            ..default()
-                        },
-                        SelectedEntityUiRoot,
-                    )],
+                    children![
+                        add_entity_button(),
+                        (
+                            Node {
+                                display: Display::Grid,
+                                ..default()
+                            },
+                            SelectedEntityUiRoot,
+                        )
+                    ],
                 ))),
                 (
                     Node {
@@ -107,14 +232,17 @@ pub fn spawn_editor(
                         row_gap: px(3),
                         ..default()
                     },
-                    children![component_browser_widget(&reg)],
+                    ComponentBrowserWidgetRoot,
+                    children![
+                        //component_browser_widget(&reg)
+                    ],
                 ),
             ],
         )],
     ));
 }
 
-fn component_browser_widget(reg: &AppTypeRegistry) -> impl Bundle {
+fn component_browser_widget(reg: &AppTypeRegistry, component_ui_anchor: Entity) -> impl Bundle {
     (
         Node {
             flex_direction: FlexDirection::Column,
@@ -141,7 +269,10 @@ fn component_browser_widget(reg: &AppTypeRegistry) -> impl Bundle {
                     SceneEditorComponentFilter,
                 ))),
             )),
-            Spawn(scroll_area_demo(spawn_component_entries(reg.clone()))),
+            Spawn(scroll_area_demo(spawn_component_entries(
+                reg.clone(),
+                component_ui_anchor,
+            ))),
         )),
     )
 }
@@ -165,6 +296,7 @@ fn hide_filtered_components(
 
 fn spawn_component_entries(
     registrations: AppTypeRegistry,
+    component_ui_anchor: Entity,
 ) -> SpawnWith<impl FnOnce(&mut RelatedSpawner<ChildOf>)> {
     SpawnWith(move |parent: &mut RelatedSpawner<ChildOf>| {
         let lock = registrations.read();
@@ -202,7 +334,9 @@ fn spawn_component_entries(
                     over: resting_color.lighter(0.025),
                 },
                 observe(
-                    |source: On<Pointer<Click>>, world: DeferredWorld, mut commands: Commands| {
+                    move |source: On<Pointer<Click>>,
+                          world: DeferredWorld,
+                          mut commands: Commands| {
                         if let Some(t_id) = world
                             .entity(source.event_target())
                             .get::<ComponentSubject>()
@@ -222,7 +356,7 @@ fn spawn_component_entries(
                                 required.push((val.clone(), v_name.into()))
                             }
                             commands.trigger(ComponentSelection {
-                                entity: source.event_target(),
+                                entity: component_ui_anchor,
                                 base: (t_id.0, name),
                                 required,
                             });
@@ -295,15 +429,11 @@ impl WorldRequiredComponentExtension for World {
     }
 }
 
-pub(crate) fn root(
-    source: On<ComponentSelection>,
-    mut dworld: DeferredWorld,
-    mut commands: Commands,
-) {
-    let mut q = dworld
-        .try_query_filtered::<Entity, With<SelectedEntityUiRoot>>()
-        .unwrap();
-    let window_root = dworld.query(&mut q).single().unwrap();
+pub(crate) fn root(source: On<ComponentSelection>, dworld: DeferredWorld, mut commands: Commands) {
+    // let mut q = dworld
+    //     .try_query_filtered::<Entity, With<SelectedEntityUiRoot>>()
+    //     .unwrap();
+    let window_root = source.event_target();
 
     let reg = dworld.resource::<AppTypeRegistry>();
 
