@@ -8,10 +8,7 @@ fn main() -> AppExit {
     App::new()
         .add_plugins((DefaultPlugins, ComponentEditorPlugin))
         .add_systems(Startup, setup)
-        .add_systems(
-            PostStartup,
-            (bevy_tinkerbox_editor::editor::spawn_editor,).chain(),
-        )
+        .add_systems(PostStartup, bevy_tinkerbox_editor::spawn_editor)
         .run()
 }
 fn setup(mut commands: Commands) {
