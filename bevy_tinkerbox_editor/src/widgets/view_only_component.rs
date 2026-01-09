@@ -4,8 +4,6 @@ use bevy::{prelude::*, ui_widgets::observe};
 
 use crate::{EntityUiRoot, ImageNodeSansHandle, widgets::component_browser::ComponentSelection};
 
-pub(super) fn plugin(app: &mut App) {}
-
 #[derive(Component)]
 pub struct RideAlongComponent(pub TypeId);
 

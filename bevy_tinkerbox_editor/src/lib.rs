@@ -1,7 +1,4 @@
-use std::{
-    any::{Any, TypeId},
-    marker::Send,
-};
+use std::{any::TypeId, marker::Send};
 
 use bevy::{
     asset::ron::{self},
@@ -17,7 +14,6 @@ use bevy::{
         EnumInfo, ParsedPath, ReflectKind, TypeInfo, TypeRegistration, VariantInfo, VariantType,
         serde::TypedReflectSerializer,
     },
-    text::ComputedTextBlock,
     ui_widgets::{ScrollbarPlugin, observe},
 };
 use bevy_ui_text_input::TextInputPlugin;
@@ -128,7 +124,7 @@ fn component_ui_despawner(mut world: DeferredWorld, context: HookContext) {
     let mut find_join_point_state = world
         .try_query::<(Entity, Option<&EntityUiRoot>, Option<&ChildOf>)>()
         .unwrap();
-    let mut find_join_point = world.query(&mut find_join_point_state);
+    let find_join_point = world.query(&mut find_join_point_state);
 
     let mut traversal_cursor = find_join_point.get(context.entity);
     let mut traversal_result: Result<Entity, String> =

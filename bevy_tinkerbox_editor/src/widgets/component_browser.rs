@@ -8,7 +8,6 @@ use bevy::ecs::relationship::RelatedSpawner;
 
 use bevy::ecs::spawn::SpawnWith;
 
-use crate::WorldRequiredComponentExtension;
 use crate::theme::colors;
 use crate::widgets::general::{
     HoverBackground, centered, filter_with_prompt, hide_filtered_components, scroll_area_demo,
