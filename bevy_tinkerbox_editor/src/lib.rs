@@ -269,7 +269,7 @@ pub(crate) fn root(source: On<ComponentSelection>, dworld: DeferredWorld, mut co
 
     let mut component_ui_state = match dworld.entity(window_root).get::<EntityUiRoot>() {
         Some(x) => x.clone(),
-        None => panic!("Unitialized world entity during component UI creation"),
+        None => panic!("Uninitialized world entity during component UI creation"),
     };
 
     let type_id = source.base;
