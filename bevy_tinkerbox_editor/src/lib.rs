@@ -22,6 +22,7 @@ use crate::{
         component_browser::{ComponentBrowserWidgetRoot, ComponentSelection},
         field_input::*,
         general::*,
+        view_only_component::{RideAlongComponent, view_only_component},
     },
 };
 
@@ -106,6 +107,7 @@ pub fn spawn_editor(
 pub struct EntityUiRoot {
     pub component_holder: Entity,
     pub desired_component_set: HashSet<TypeId>,
+    pub ride_along_components: HashSet<TypeId>,
 }
 
 #[derive(Component, Clone)]
@@ -139,21 +141,13 @@ impl WorldRequiredComponentExtension for World {
 }
 
 pub(crate) fn root(source: On<ComponentSelection>, dworld: DeferredWorld, mut commands: Commands) {
-    // let mut q = dworld
-    //     .try_query_filtered::<Entity, With<SelectedEntityUiRoot>>()
-    //     .unwrap();
     let window_root = source.event_target();
 
     let reg = dworld.resource::<AppTypeRegistry>();
 
-    // We're potentially going to make a bunch of edits here so lets get a clone of our component to work with.
-    //
     let mut component_ui_state = match dworld.entity(window_root).get::<EntityUiRoot>() {
         Some(x) => x.clone(),
-        None => EntityUiRoot {
-            component_holder: commands.spawn_empty().id(),
-            desired_component_set: HashSet::new(),
-        },
+        None => panic!("Unitialized world entity during component UI creation"),
     };
 
     let type_id = source.base.0;
@@ -168,38 +162,61 @@ pub(crate) fn root(source: On<ComponentSelection>, dworld: DeferredWorld, mut co
             error!("Couldn't initialize selected component");
             return;
         }
+    } else {
+        return;
+    }
+    if component_ui_state.ride_along_components.remove(&type_id) {
+        let Some(kids) = dworld.entity(window_root).get_components::<&Children>() else {
+            panic!("failed to initialize children for root");
+        };
+        for kid in kids.iter() {
+            let Some(ride_along) = dworld.entity(kid).get_components::<&RideAlongComponent>()
+            else {
+                continue;
+            };
+
+            if ride_along.0 == type_id {
+                commands.entity(kid).despawn();
+            }
+        }
     }
 
-    let mut type_ids: Vec<TypeId> = Vec::new();
-    type_ids.push(type_id);
     let reqs = dworld.required_components(type_id);
     let r = reg.read();
 
-    for component_type_id in vec![type_ids, reqs].iter().flatten() {
+    for component_type_id in reqs {
         let registry = reg.read();
-        let Some(_root_type_info) = registry.get(*component_type_id) else {
+        let Some(root_type_info) = registry.get(component_type_id) else {
             info!("Failed to find registration for ID {:?}", component_type_id);
             continue;
         };
-        if !component_ui_state
-            .desired_component_set
-            .insert(*component_type_id)
-        {
+        let (was_in_ridealong_list, was_in_active_list) = (
+            !component_ui_state
+                .ride_along_components
+                .insert(component_type_id),
+            component_ui_state
+                .desired_component_set
+                .contains(&component_type_id),
+        );
+        let name = root_type_info.type_info().type_path_table().short_path();
+        if was_in_active_list || was_in_ridealong_list {
             info!(
-                "Component ID {:?} already exists on entity",
-                component_type_id
+                "Component {:?} already exists on entity :[ was_active: {:?}, was_ride_along: {:?}]",
+                name, was_in_active_list, was_in_ridealong_list
             );
             continue;
         }
-        let registration = r.get(*component_type_id).unwrap();
-
-        // info!("Type info! {:?}", root_type_info.type_info());
-        commands.trigger(UiRequestedFor {
-            component_ui_root: window_root,
-            world_target: the_one_in_the_world,
-            component_type_registration: registration.clone(),
-        });
+        commands
+            .entity(window_root)
+            .with_child(view_only_component(name.to_owned(), component_type_id));
     }
+    let registration = r.get(type_id).unwrap();
+
+    commands.trigger(UiRequestedFor {
+        component_ui_root: window_root,
+        world_target: the_one_in_the_world,
+        component_type_registration: registration.clone(),
+    });
     commands.entity(window_root).insert(component_ui_state);
 }
 
@@ -222,6 +239,7 @@ pub(crate) struct FieldUiRequestedFor {
 pub(crate) fn component_ui_initializer(
     source: On<UiRequestedFor>,
     world: DeferredWorld,
+
     mut commands: Commands,
 ) {
     let registry = world.resource::<AppTypeRegistry>().read();
@@ -240,14 +258,38 @@ pub(crate) fn component_ui_initializer(
                 ..default()
             },
             BorderColor::all(Srgba::BLACK),
-            ComponentUiFor {
-                target: source.world_target,
-            },
         ))
         .id();
+
+    commands
+        .entity(source.world_target)
+        .add_one_related::<ComponentUiFor>(component_card);
+
+    // Assumption -
+    // The sibling immediately before the first RAC will be the end of the live components.
+    // If no RACs exist, this will just put us at the end of the list, which is fine.
+    //
+
+    let mut kidx: usize = 0;
+    let Some(kids) = world
+        .entity(source.component_ui_root)
+        .get_components::<&Children>()
+    else {
+        //TODO - handle this
+        return;
+    };
+    for kid in kids.iter() {
+        if let Some(_ride_along) = world.entity(kid).get_components::<&RideAlongComponent>() {
+            break;
+        } else {
+            kidx = kidx + 1;
+        }
+    }
+
     commands
         .entity(source.component_ui_root)
-        .add_child(component_card);
+        .insert_child(kidx, component_card);
+
     commands.entity(component_card).with_child((component_title(
         source
             .component_type_registration

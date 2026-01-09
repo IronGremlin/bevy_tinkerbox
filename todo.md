@@ -1,5 +1,7 @@
 # Up Next
 
+## Big picture
+
 1. [ ] Refactor editor UI with new workflow
     - User creates entity(ies)
     - User selects components
@@ -8,6 +10,15 @@
        - Reasoning: We should only be serializing those parts of a scene that the user has supplied data for - but knowing what'll be there is still vital.
 2. [ ] Make POC for a Sprite UI
 3. [ ] Make 2d Transform widget
+
+## lil picture
+
+1. [ ] add ui for 'ride-along' components
+    - [?] Make presentation for components that exist as a req. for some selected component(s)
+    - [X] Swap logic to only generate edit UI for user selected components
+    - [ ] add a button to allow removing selected components
+    - [ ] include logic to remove "ride-along" components for removed selected components IFF they aren't present on other selected components. 
+    
 
 
 # missing scene editor concepts
@@ -46,7 +57,7 @@
  
  # housekeeping
  
- - [ ... ] crack apart migrated editor code into at least a rough sketch of sane modules
+ - [X] crack apart migrated editor code into at least a rough sketch of sane modules
  - [ ] Write project readme
  - [ ]
 

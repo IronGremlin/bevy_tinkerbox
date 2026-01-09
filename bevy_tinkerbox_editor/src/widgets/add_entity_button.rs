@@ -42,6 +42,7 @@ pub(crate) fn make_new_entity_ui(entity: Entity) -> impl Bundle {
         EntityUiRoot {
             component_holder: entity,
             desired_component_set: HashSet::new(),
+            ride_along_components: HashSet::new(),
         },
         observe(add_component_button_on_click),
         children![(
