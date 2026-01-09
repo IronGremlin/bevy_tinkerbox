@@ -2,7 +2,7 @@
 
 ## Big picture
 
-1. [ ] Refactor editor UI with new workflow
+1. [X] Refactor editor UI with new workflow
     - User creates entity(ies)
     - User selects components
     - UI indicates 'live' but unselected components, with a button to allow over-ride
@@ -13,11 +13,11 @@
 
 ## lil picture
 
-1. [ ] add ui for 'ride-along' components
-    - [?] Make presentation for components that exist as a req. for some selected component(s)
+1. [X] add ui for 'ride-along' components
+    - [X] Make presentation for components that exist as a req. for some selected component(s)
     - [X] Swap logic to only generate edit UI for user selected components
-    - [ ] add a button to allow removing selected components
-    - [ ] include logic to remove "ride-along" components for removed selected components IFF they aren't present on other selected components. 
+    - [X] add a button to allow removing selected components
+    - [X] include logic to remove "ride-along" components for removed selected components IFF they aren't present on other selected components. 
     
 
 
@@ -59,11 +59,11 @@
  
  - [X] crack apart migrated editor code into at least a rough sketch of sane modules
  - [ ] Write project readme
- - [ ]
 
 
  # back burner
  - [ ] make dev-tools editor screen
  - [ ] Refactor cargo features / profiles to make some kinda sense
+ - [ ] More module refactoring of the editor lib is definitely overdue, that shit is getting really gnar
  - [ ] Dude write some tests, you should be ashamed
     - dude you moved this to back burner what is wrong with you

@@ -1,8 +1,14 @@
-use std::{any::TypeId, marker::Send};
+use std::{
+    any::{Any, TypeId},
+    marker::Send,
+};
 
 use bevy::{
     asset::ron::{self},
-    ecs::{lifecycle::HookContext, reflect::ReflectCommandExt, world::DeferredWorld},
+    ecs::{
+        component::ComponentId, lifecycle::HookContext, reflect::ReflectCommandExt,
+        relationship::Relationship, world::DeferredWorld,
+    },
     input_focus::tab_navigation::{TabGroup, TabNavigationPlugin},
     platform::collections::HashSet,
     prelude::*,
@@ -11,6 +17,7 @@ use bevy::{
         EnumInfo, ParsedPath, ReflectKind, TypeInfo, TypeRegistration, VariantInfo, VariantType,
         serde::TypedReflectSerializer,
     },
+    text::ComputedTextBlock,
     ui_widgets::{ScrollbarPlugin, observe},
 };
 use bevy_ui_text_input::TextInputPlugin;
@@ -112,9 +119,128 @@ pub struct EntityUiRoot {
 
 #[derive(Component, Clone)]
 #[relationship(relationship_target = ComponentUisFor)]
+#[component(on_despawn = component_ui_despawner)]
 pub struct ComponentUiFor {
     #[relationship]
     pub target: Entity,
+}
+fn component_ui_despawner(mut world: DeferredWorld, context: HookContext) {
+    let mut find_join_point_state = world
+        .try_query::<(Entity, Option<&EntityUiRoot>, Option<&ChildOf>)>()
+        .unwrap();
+    let mut find_join_point = world.query(&mut find_join_point_state);
+
+    let mut traversal_cursor = find_join_point.get(context.entity);
+    let mut traversal_result: Result<Entity, String> =
+        Err("Could not find ancestor with UiRoot".to_owned());
+    while traversal_cursor.is_ok() {
+        match traversal_cursor {
+            Ok((ui_for, Some(_), _)) => {
+                traversal_result = Ok(ui_for);
+                break;
+            }
+            Ok((_, None, Some(parent))) => {
+                traversal_cursor = find_join_point.get(parent.get());
+            }
+            _ => {
+                // We're only here if we hit the last ancestor and never found our UI root OR
+                // we tried to access a dead entity. We don't really care about why this happened exactly so we can just fall back to the default error on our result.
+                break;
+            }
+        }
+    }
+    match traversal_result {
+        Err(e) => {
+            info!({ e })
+        }
+        Ok(ui) => {
+            //TODO - GOOD GOD man, please clean this up
+            let ui_root = world.entity(ui).get_components::<&EntityUiRoot>().unwrap();
+            let type_registration = world
+                .entity(context.entity)
+                .components::<&ComponentIdentifer>()
+                .0
+                .clone();
+            let c_name = type_registration.type_info().type_path_table().short_path();
+            let type_id = type_registration.type_id();
+
+            let mut new_root = ui_root.clone();
+            new_root.desired_component_set.remove(&type_id);
+            info!(
+                "selected len: {:?} | rac len {:?}",
+                new_root.desired_component_set.len(),
+                new_root.ride_along_components.len()
+            );
+
+            let mut dead_reqs = world
+                .required_components(type_id)
+                .iter()
+                .map(|x| *x)
+                .collect::<HashSet<TypeId>>();
+            dead_reqs.insert(type_id);
+            let live_reqs: HashSet<TypeId> = new_root
+                .desired_component_set
+                .iter()
+                .flat_map(|x| world.required_components(*x))
+                .collect();
+            new_root.ride_along_components = new_root
+                .ride_along_components
+                .difference(&dead_reqs)
+                .map(|x| *x)
+                .collect::<HashSet<TypeId>>()
+                .union(&live_reqs)
+                .map(|x| *x)
+                .collect::<HashSet<TypeId>>();
+            let dead_letter_bin = dead_reqs
+                .difference(&new_root.ride_along_components)
+                .filter_map(|x| world.components().get_id(*x))
+                .collect::<Vec<ComponentId>>();
+
+            let mut targets: Vec<Entity> = Vec::new();
+            let Some(kids) = world.entity(ui).get_components::<&Children>() else {
+                panic!("failed to initialize children for root");
+            };
+            for kid in kids.iter() {
+                let Some(ride_along) = world.entity(kid).get_components::<&RideAlongComponent>()
+                else {
+                    continue;
+                };
+                let (in_dead_reqs, in_live_reqs) = (
+                    dead_reqs.contains(&ride_along.0),
+                    new_root.ride_along_components.contains(&ride_along.0),
+                );
+
+                if in_dead_reqs && !in_live_reqs {
+                    targets.push(kid);
+                }
+            }
+
+            let mut commands = world.commands();
+            if new_root.ride_along_components.contains(&type_id) {
+                commands
+                    .entity(ui)
+                    .with_child(view_only_component(c_name.to_owned(), type_id.clone()));
+            } else {
+                for c_id in dead_letter_bin {
+                    commands
+                        .entity(new_root.component_holder)
+                        .remove_by_id(c_id);
+                }
+
+                commands.entity(new_root.component_holder).log_components();
+            }
+            commands
+                .entity(ui)
+                .entry::<EntityUiRoot>()
+                .and_modify(move |mut w_root| {
+                    w_root.desired_component_set.remove(&type_id);
+                    w_root.ride_along_components = new_root.ride_along_components;
+                });
+            for t in targets {
+                commands.entity(t).despawn();
+            }
+        }
+    }
 }
 
 #[derive(Component, Clone)]
@@ -150,10 +276,10 @@ pub(crate) fn root(source: On<ComponentSelection>, dworld: DeferredWorld, mut co
         None => panic!("Unitialized world entity during component UI creation"),
     };
 
-    let type_id = source.base.0;
+    let type_id = source.base;
     let the_one_in_the_world = component_ui_state.component_holder;
 
-    if !component_ui_state.desired_component_set.contains(&type_id) {
+    if component_ui_state.desired_component_set.insert(type_id) {
         if let Ok(init_component) = instantiate_or_die(&*reg, type_id, None) {
             commands
                 .entity(the_one_in_the_world)
@@ -258,6 +384,8 @@ pub(crate) fn component_ui_initializer(
                 ..default()
             },
             BorderColor::all(Srgba::BLACK),
+            CloseRoot,
+            ComponentIdentifer(source.component_type_registration.clone()),
         ))
         .id();
 
@@ -848,11 +976,29 @@ fn component_title(name: impl Into<String>) -> impl Bundle {
     (
         Node::default(),
         children![
-            Text::new(name),
-            TextFont {
-                font_size: 16.,
-                ..Default::default()
-            }
+            (
+                Text::new(name),
+                TextFont {
+                    font_size: 16.,
+                    ..Default::default()
+                }
+            ),
+            (
+                Name::new("Remove Component"),
+                Node {
+                    width: px(12.),
+                    height: px(12.),
+                    ..default()
+                },
+                ImageNodeSansHandle {
+                    path_to_image: "lucide/trash-2-white.png".to_owned(),
+                    color: Color::from(Srgba::RED),
+                    ..default()
+                },
+                observe(|src: On<Pointer<Click>>, mut commands: Commands| {
+                    commands.trigger(CloseEvent::new(src.event_target()));
+                })
+            )
         ],
     )
 }
@@ -1048,7 +1194,8 @@ pub struct FieldAccessPath {
 }
 #[derive(Component)]
 pub struct SelectedEntityUiRoot;
-
+#[derive(Component)]
+pub struct ComponentIdentifer(pub TypeRegistration);
 #[derive(EntityEvent)]
 #[entity_event(propagate, auto_propagate)]
 pub struct RadioGroupSelection {

@@ -17,6 +17,10 @@ use bevy_ui_text_input::{
 
 use crate::{ComponentUiFor, theme::colors};
 
+pub(super) fn plugin(app: &mut App) {
+    app.add_observer(watch_for_close);
+}
+
 pub fn scroll_area_demo<F>(that_which_is_scrolled: SpawnWith<F>) -> impl Bundle
 where
     F: FnOnce(&mut RelatedSpawner<ChildOf>) + Send + Sync + 'static,
@@ -90,6 +94,27 @@ where
             ));
         }),)),
     )
+}
+#[derive(Component)]
+pub struct CloseRoot;
+
+#[derive(EntityEvent)]
+#[entity_event(propagate)]
+#[entity_event(auto_propagate)]
+pub struct CloseEvent {
+    entity: Entity,
+}
+impl CloseEvent {
+    pub fn new(entity: Entity) -> Self {
+        Self { entity }
+    }
+}
+
+fn watch_for_close(mut src: On<CloseEvent>, stop: Query<Has<CloseRoot>>, mut commands: Commands) {
+    if stop.get(src.event_target()).unwrap_or(false) {
+        src.propagate(false);
+        commands.entity(src.event_target()).despawn();
+    }
 }
 
 #[derive(Component)]

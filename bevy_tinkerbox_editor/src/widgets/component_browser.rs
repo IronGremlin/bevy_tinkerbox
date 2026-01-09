@@ -142,24 +142,9 @@ pub(crate) fn component_entry_on_click(
         .entity(source.event_target())
         .get::<ComponentSubject>()
     {
-        let r = world.resource::<AppTypeRegistry>();
-        let registry = r.read();
-        let name = registry
-            .get(c_subject.type_id)
-            .map(|x| x.type_info().type_path_table().short_path())
-            .unwrap_or("");
-        let mut required: Vec<(TypeId, &'static str)> = Vec::new();
-        for val in world.required_components(c_subject.type_id) {
-            let v_name = registry
-                .get(val)
-                .map(|e| e.type_info().type_path_table().short_path())
-                .unwrap_or("");
-            required.push((val.clone(), v_name.into()))
-        }
         commands.trigger(ComponentSelection {
             entity: c_subject.ui_anchor,
-            base: (c_subject.type_id, name),
-            required,
+            base: c_subject.type_id,
         });
     }
 }
@@ -176,8 +161,7 @@ pub struct SceneEditorComponentFilter;
 #[derive(Component, Clone, EntityEvent)]
 pub struct ComponentSelection {
     pub entity: Entity,
-    pub base: (TypeId, &'static str),
-    pub required: Vec<(TypeId, &'static str)>,
+    pub base: TypeId,
 }
 #[derive(Component)]
 pub struct ComponentBrowserWidgetRoot;
