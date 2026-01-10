@@ -16,6 +16,7 @@ use bevy::{
     },
     ui_widgets::{ScrollbarPlugin, observe},
 };
+use bevy_file_dialog::FileDialogPlugin;
 use bevy_ui_text_input::TextInputPlugin;
 
 use crate::{
@@ -38,7 +39,12 @@ impl Plugin for ComponentEditorPlugin {
     fn build(&self, app: &mut App) {
         //TODO - it feels really weird to be initializing the text input plugin here -
         // but it's also not clear which sub module should own it.
-        app.add_plugins((TextInputPlugin, TabNavigationPlugin, ScrollbarPlugin));
+        app.add_plugins((
+            TextInputPlugin,
+            TabNavigationPlugin,
+            ScrollbarPlugin,
+            FileDialogPlugin::default(),
+        ));
         app.add_plugins((editor_override_traits::plugin, widgets::plugin));
         app.init_resource::<AppTypeRegistry>();
         app.add_observer(root);
@@ -521,6 +527,54 @@ impl<'a, 'b, 'w> ComponentUiContext<'a, 'b, 'w> {
 
         let maybe_field_level_trait = registration.data::<ReflectEditorFieldUI>();
         let maybe_struct_level_trait = registration.data::<ReflectEditorPerFieldUI>();
+        if type_name == "Handle<Image>" {
+            info!("We're trying to make the field for Handle<Image>");
+            info!(
+                "We have loaded field level type data: {:?}",
+                maybe_field_level_trait.is_some()
+            );
+            info!("We're operating at path: {}", step_context.local_path);
+        }
+        if let Some(editor_trait) = maybe_field_level_trait {
+            //TODO - Clean this up a bit.
+            // probably push this off into leaf-level functions for these match arms, treat this as
+            // another matched case - it essentially is, since we're overriding step sequence.
+            let row = commands
+                .spawn((
+                    Node {
+                        flex_direction: FlexDirection::Row,
+                        padding: UiRect::all(px(1.)),
+                        column_gap: px(2.),
+                        ..default()
+                    },
+                    children![(
+                        Name::new("Field Label"),
+                        Text::new(step_context.local_name),
+                        TextFont::from_font_size(10.0),
+                    )],
+                ))
+                .id();
+            commands.entity(step_context.local_ui_focus).add_child(row);
+            let bucket = commands.spawn_empty().id();
+            commands.entity(row).add_child(bucket);
+            match step_context.local_path.reflect_element(self.the_component) {
+                Ok(v) => {
+                    let my_dyn = editor_trait.get(v.try_as_reflect().unwrap()).unwrap();
+                    my_dyn.construct_field_ui(bucket, commands);
+                    commands.entity(bucket).insert(FieldAccessPath {
+                        path: ParsedPath::parse(step_context.local_path.as_str()).unwrap(),
+                        value_type_id: step_context.local_type_info.type_id(),
+                        component_type_id: self.component_type_registration.type_id(),
+                        owning_entity: self.world_target,
+                    });
+                    commands.trigger(FieldUiRequestedFor {
+                        component_ui_root: bucket,
+                    });
+                    return;
+                }
+                Err(_) => todo!(),
+            }
+        }
 
         match step_context.local_type_info {
             TypeInfo::Struct(struct_info) => {
@@ -704,55 +758,33 @@ impl<'a, 'b, 'w> ComponentUiContext<'a, 'b, 'w> {
 
                 //TODO - We should restructure this to be less spah-get
 
-                if let Some(editor_trait) = maybe_field_level_trait {
-                    let bucket = commands.spawn_empty().id();
-                    commands.entity(row).add_child(bucket);
-                    match step_context.local_path.reflect_element(self.the_component) {
-                        Ok(v) => {
-                            let my_dyn = editor_trait.get(v.try_as_reflect().unwrap()).unwrap();
-                            my_dyn.construct_field_ui(bucket, commands);
-                            commands.entity(bucket).insert(FieldAccessPath {
-                                path: ParsedPath::parse(step_context.local_path.as_str()).unwrap(),
-                                value_type_id: step_context.local_type_info.type_id(),
-                                component_type_id: self.component_type_registration.type_id(),
-                                owning_entity: self.world_target,
-                            });
-                            commands.trigger(FieldUiRequestedFor {
-                                component_ui_root: bucket,
-                            });
-                            return;
-                        }
-                        Err(_) => todo!(),
-                    }
-                } else {
-                    match field_is_parseable(&step_context.local_type_info.type_id(), &*self.reg)
-                        .and_then(|_| {
-                            ParsedPath::parse(step_context.local_path.as_str())
-                                .map_err(|e| e.to_string())
+                match field_is_parseable(&step_context.local_type_info.type_id(), &*self.reg)
+                    .and_then(|_| {
+                        ParsedPath::parse(step_context.local_path.as_str())
+                            .map_err(|e| e.to_string())
+                    })
+                    .and_then(|path| {
+                        Ok(FieldAccessPath {
+                            owning_entity: self.world_target.clone(),
+                            component_type_id: self.component_type_registration.type_id(),
+                            path: path,
+                            value_type_id: step_context.local_type_info.type_id(),
                         })
-                        .and_then(|path| {
-                            Ok(FieldAccessPath {
-                                owning_entity: self.world_target.clone(),
-                                component_type_id: self.component_type_registration.type_id(),
-                                path: path,
-                                value_type_id: step_context.local_type_info.type_id(),
+                    })
+                    .and_then(|cap| {
+                        cap.path
+                            .reflect_element(&*self.the_component)
+                            .map_err(|e| e.to_string())
+                            .and_then(|we| {
+                                let read_lock = self.reg.read();
+                                let serializer = TypedReflectSerializer::new(&*we, &*read_lock);
+                                ron::to_string(&serializer).map_err(|_| "".to_string())
                             })
-                        })
-                        .and_then(|cap| {
-                            cap.path
-                                .reflect_element(&*self.the_component)
-                                .map_err(|e| e.to_string())
-                                .and_then(|we| {
-                                    let read_lock = self.reg.read();
-                                    let serializer = TypedReflectSerializer::new(&*we, &*read_lock);
-                                    ron::to_string(&serializer).map_err(|_| "".to_string())
-                                })
-                                .map(|txt| value_input_field(txt, cap))
-                        }) {
-                        Ok(f) => commands.entity(row).with_child(f),
-                        Err(t) => commands.entity(row).with_child(input_field_error(t)),
-                    };
-                }
+                            .map(|txt| value_input_field(txt, cap))
+                    }) {
+                    Ok(f) => commands.entity(row).with_child(f),
+                    Err(t) => commands.entity(row).with_child(input_field_error(t)),
+                };
 
                 commands.entity(row).with_child((
                     Node { ..default() },

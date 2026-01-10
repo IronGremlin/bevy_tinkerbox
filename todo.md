@@ -13,11 +13,13 @@
 
 ## lil picture
 
-1. [X] add ui for 'ride-along' components
-    - [X] Make presentation for components that exist as a req. for some selected component(s)
-    - [X] Swap logic to only generate edit UI for user selected components
-    - [X] add a button to allow removing selected components
-    - [X] include logic to remove "ride-along" components for removed selected components IFF they aren't present on other selected components. 
+1. [X] Wire up file picker dialog
+2. [X] Make mvp UI for sprite
+   - Just build a minimum to wire up the handle with some defaults to get it to show.
+   - This requires loading image as asset, then assessing texture_descriptor.size to fill sprite .rect property
+3. [ ] Figure out how to do architecture for TextureAtlas preview -
+    - This gets weird because we can't just operate in world-space
+    - might need to mess around with doing some kinda render-layer stuff and put the UI in a separate canvas - can default picking work through an image layer canvas? I'd imagine no...
     
 
 
@@ -63,6 +65,7 @@
 
  # back burner
  - [ ] make dev-tools editor screen
+ - [ ] We should refactor so that target entities point back to their EntityUiRoot with some kind of relation - should help support scene serialization logic and cleanup traversal
  - [ ] Refactor cargo features / profiles to make some kinda sense
  - [ ] More module refactoring of the editor lib is definitely overdue, that shit is getting really gnar
  - [ ] Dude write some tests, you should be ashamed

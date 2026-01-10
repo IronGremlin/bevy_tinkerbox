@@ -1,5 +1,3 @@
-use bevy::{ecs::world::DeferredWorld, prelude::*, ui_widgets::observe};
-
 use crate::{
     DynamicComponentUiUpdateEvent, FieldAccessPath, FieldUiRequestedFor, ImageNodeSansHandle,
     UiCtxt,
@@ -9,6 +7,11 @@ use crate::{
     },
     widgets::general::{FormControl, FormElement, FormElementMarker},
 };
+use bevy::{
+    asset::io::file::FileAssetReader, ecs::world::DeferredWorld, image::ImageLoader, prelude::*,
+    ui_widgets::observe,
+};
+use bevy_file_dialog::{EntityFileDialogExt, EntityScopedDialogEvent};
 pub(super) fn plugin(app: &mut App) {
     app.add_systems(
         PreStartup,
@@ -20,6 +23,7 @@ pub(super) fn plugin(app: &mut App) {
 fn manually_registering_trait_data_for_fun_and_profit(reg: ResMut<AppTypeRegistry>) {
     let mut registry = reg.write();
     registry.register_type_data::<bool, ReflectEditorFieldUI>();
+    registry.register_type_data::<Handle<Image>, ReflectEditorFieldUI>();
     registry.register_type_data::<Transform, ReflectEditorPerFieldUI>();
     registry.register_type_data::<Transform, ReflectEditorHeaderUI>();
 }
@@ -142,7 +146,7 @@ fn transform_editor_presentation(
         (&TransformEditorFormControl, &FormControl),
         Changed<TransformEditorFormControl>,
     >,
-
+    //TODO - This is an overwhelmingly stupid way to do this, I really need to figure something more graceful.
     mut buttons: Query<
         (
             &mut ImageNode,
@@ -303,6 +307,97 @@ impl EditorFieldUI for bool {
             },
             click_watcher,
             world_watcher,
+        ));
+    }
+}
+impl EditorPerFieldUI for Sprite {
+    fn construct_per_field_ui(&self, ctxt: &UiCtxt, commands: &mut Commands) {
+        match ctxt.path() {
+            "image" => {}
+            "texture_atlas" => {}
+            "color" => {}
+            "custom_size" => {}
+            "rect" => {}
+            "image_mode" => {}
+            _ => {}
+        };
+        ctxt.next(commands);
+    }
+}
+impl EditorFieldUI for Handle<Image> {
+    fn construct_field_ui(&self, entity: Entity, commands: &mut Commands) {
+        commands.entity(entity).insert((
+            Node {
+                display: Display::Grid,
+                grid_auto_flow: GridAutoFlow::Column,
+                column_gap: px(3.),
+                width: percent(100.),
+                ..default()
+            },
+            observe(
+                |event: On<EntityScopedDialogEvent>,
+                 world: DeferredWorld,
+                 mut s_commands: Commands| {
+                    let my_cap = world
+                        .entity(event.event_target())
+                        .components::<&FieldAccessPath>()
+                        .clone();
+                    let assets = world.resource::<AssetServer>();
+                    use bevy_file_dialog::EntityScopedDialogResult::*;
+                    match event.clone().result {
+                        Pick(file_pick) => {
+                            let full_path = file_pick.path.clone().to_owned();
+                            //TODO - figure out how to do this without hard-coding this string.
+                            let root = FileAssetReader::get_base_path().join("assets");
+                            let path = full_path.strip_prefix(root).unwrap();
+                            let handle: Handle<Image> = assets.load(path.to_owned());
+                            s_commands.trigger(DynamicComponentUiUpdateEvent::new(
+                                event.event_target(),
+                                Box::new(handle),
+                                my_cap.clone(),
+                            ));
+                        }
+                        _ => {}
+                    };
+                },
+            ),
+            children![
+                (Node {
+                    width: px(5.0),
+                    ..default()
+                },),
+                (
+                    Node::default(),
+                    BackgroundColor(Color::from(Srgba::gray(0.3))),
+                    children![(
+                        Text::new(
+                            self.path()
+                                .map(|n| n.to_string())
+                                .unwrap_or("<<unknown>>".to_owned())
+                        ),
+                        TextLayout::new_with_justify(Justify::Center),
+                        TextFont::from_font_size(8.)
+                    )]
+                ),
+                (
+                    Node {
+                        width: px(12.0),
+                        height: px(12.0),
+                        border: UiRect::all(px(1.)),
+                        ..default()
+                    },
+                    ImageNodeSansHandle::from_path("lucide/folder-white.png".to_owned()),
+                    BorderColor::all(Srgba::WHITE),
+                    observe(move |_: On<Pointer<Click>>, mut s_commands: Commands| {
+                        s_commands
+                            .entity(entity)
+                            .with_dialog()
+                            .add_filter("image", ImageLoader::SUPPORTED_FILE_EXTENSIONS)
+                            .set_title("Select Image")
+                            .pick_file_path();
+                    }),
+                )
+            ],
         ));
     }
 }

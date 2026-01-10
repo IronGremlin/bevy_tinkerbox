@@ -9,7 +9,10 @@ bevy_ui_text_input = {workspace = true}
 cosmic-text = {workspace = true}
 rand = {workspace = true}
 serde = {workspace = true}
-
+bevy_file_dialog = {workspace = true}
+zvariant = {workspace = true}
+zvariant_derive = {workspace = true}
+zvariant_utils = {workspace = true}
 
 [features]
 # Default to a native dev build.
@@ -29,4 +32,5 @@ dev_native = [
     "bevy/file_watcher",
     # Enable embedded asset hot reloading for native dev builds.
     "bevy/embedded_watcher",
+    "bevy/multi_threaded"
 ]
