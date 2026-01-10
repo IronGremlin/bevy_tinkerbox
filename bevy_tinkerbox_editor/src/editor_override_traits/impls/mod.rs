@@ -324,6 +324,7 @@ impl EditorPerFieldUI for Sprite {
         ctxt.next(commands);
     }
 }
+
 impl EditorFieldUI for Handle<Image> {
     fn construct_field_ui(&self, entity: Entity, commands: &mut Commands) {
         commands.entity(entity).insert((
@@ -359,6 +360,38 @@ impl EditorFieldUI for Handle<Image> {
                         }
                         _ => {}
                     };
+                },
+            ),
+            observe(
+                |src: On<FieldUiRequestedFor>, world: DeferredWorld, mut s_commands: Commands| {
+                    let my_cap = world
+                        .entity(src.component_ui_root)
+                        .get_components::<&FieldAccessPath>()
+                        .unwrap();
+                    let component = world
+                        .get_reflect(my_cap.owning_entity, my_cap.component_type_id)
+                        .unwrap();
+                    let image = my_cap.path.element::<Handle<Image>>(component).unwrap();
+                    let path = image
+                        .path()
+                        .map(|x| x.to_string())
+                        .unwrap_or("<<unkown>>".to_owned());
+                    let text_node = world
+                        .entity(src.event_target())
+                        .components::<&Children>()
+                        .get(1)
+                        .unwrap();
+                    let text_entity = world
+                        .entity(*text_node)
+                        .components::<&Children>()
+                        .get(0)
+                        .unwrap();
+                    s_commands
+                        .entity(*text_entity)
+                        .entry::<Text>()
+                        .and_modify(|mut txt| {
+                            txt.0 = path;
+                        });
                 },
             ),
             children![

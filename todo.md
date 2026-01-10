@@ -13,6 +13,7 @@
 
 ## lil picture
 
+### Sprite UI
 1. [X] Wire up file picker dialog
 2. [X] Make mvp UI for sprite
    - Just build a minimum to wire up the handle with some defaults to get it to show.
@@ -20,6 +21,18 @@
 3. [ ] Figure out how to do architecture for TextureAtlas preview -
     - This gets weird because we can't just operate in world-space
     - might need to mess around with doing some kinda render-layer stuff and put the UI in a separate canvas - can default picking work through an image layer canvas? I'd imagine no...
+    - kicking the can on this to preserve momentum since MVP ended up easier than I'd anticpated.
+    
+### Xform wiget
+1. spawn basic shape widget
+2. add (basic) editor scene-view camera logic/controls
+  - Remember to care about UI focus!
+  - Maybe take advantage of this to do some groundwork for more advanced display/render target stuff later so UI is truly separate and we leave space for advanced picking logics later
+3. Figure logic for locking 2d widget scale to camera scale so that relative widget size is fixed to camera scale
+4. Our very first setting, "transform widget size", so that the user can tweak the apparent size of the xform widget handles
+5. do the actual drag controls for the widget
+6. provide a 'uniform' option for xform scale entry so that when users inevitably totally fuck their aspect ratio by clicking the wrong thing on the widget they can fix their fuckup.
+
     
 
 
