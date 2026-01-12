@@ -3,8 +3,12 @@ use std::{any::TypeId, marker::Send};
 use bevy::{
     asset::ron::{self},
     ecs::{
-        component::ComponentId, lifecycle::HookContext, reflect::ReflectCommandExt,
-        relationship::Relationship, world::DeferredWorld,
+        component::ComponentId,
+        lifecycle::HookContext,
+        query::{self, QueryData},
+        reflect::ReflectCommandExt,
+        relationship::Relationship,
+        world::DeferredWorld,
     },
     input_focus::tab_navigation::{TabGroup, TabNavigationPlugin},
     platform::collections::HashSet,
@@ -72,12 +76,21 @@ pub fn spawn_editor(
             ..Default::default()
         },
         BackgroundColor(Color::NONE),
+        //Whoa man do NOT forget to do this or you'll have a real bad time lmao
+        Pickable {
+            should_block_lower: false,
+            is_hoverable: true,
+        },
         UiTargetCamera(q.single().unwrap()),
         TabGroup::default(),
         children![(
             Node {
                 flex_direction: FlexDirection::Row,
                 ..default()
+            },
+            Pickable {
+                should_block_lower: false,
+                is_hoverable: true,
             },
             children![
                 scroll_area_demo(as_bundle((
@@ -527,14 +540,7 @@ impl<'a, 'b, 'w> ComponentUiContext<'a, 'b, 'w> {
 
         let maybe_field_level_trait = registration.data::<ReflectEditorFieldUI>();
         let maybe_struct_level_trait = registration.data::<ReflectEditorPerFieldUI>();
-        if type_name == "Handle<Image>" {
-            info!("We're trying to make the field for Handle<Image>");
-            info!(
-                "We have loaded field level type data: {:?}",
-                maybe_field_level_trait.is_some()
-            );
-            info!("We're operating at path: {}", step_context.local_path);
-        }
+
         if let Some(editor_trait) = maybe_field_level_trait {
             //TODO - Clean this up a bit.
             // probably push this off into leaf-level functions for these match arms, treat this as
