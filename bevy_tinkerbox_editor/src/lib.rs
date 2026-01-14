@@ -3,13 +3,10 @@ use std::{any::TypeId, marker::Send};
 use bevy::{
     asset::ron::{self},
     ecs::{
-        component::ComponentId,
-        lifecycle::HookContext,
-        query::{self, QueryData},
-        reflect::ReflectCommandExt,
-        relationship::Relationship,
-        world::DeferredWorld,
+        component::ComponentId, lifecycle::HookContext, reflect::ReflectCommandExt,
+        relationship::Relationship, world::DeferredWorld,
     },
+    image::{ImageFilterMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor},
     input_focus::tab_navigation::{TabGroup, TabNavigationPlugin},
     platform::collections::HashSet,
     prelude::*,
@@ -24,6 +21,7 @@ use bevy_file_dialog::FileDialogPlugin;
 use bevy_ui_text_input::TextInputPlugin;
 
 use crate::{
+    asset_tracking::ResourceHandles,
     editor_override_traits::*,
     widgets::{
         add_entity_button::add_entity_button,
@@ -34,6 +32,7 @@ use crate::{
     },
 };
 
+mod asset_tracking;
 mod editor_override_traits;
 mod theme;
 pub mod widgets;
@@ -49,13 +48,114 @@ impl Plugin for ComponentEditorPlugin {
             ScrollbarPlugin,
             FileDialogPlugin::default(),
         ));
-        app.add_plugins((editor_override_traits::plugin, widgets::plugin));
+        app.add_plugins((
+            asset_tracking::plugin,
+            editor_override_traits::plugin,
+            widgets::plugin,
+        ));
+        app.init_state::<LoadingStatus>();
         app.init_resource::<AppTypeRegistry>();
+        app.init_resource::<AssortedIcons>();
+        app.add_systems(Startup, editor_initialization);
         app.add_observer(root);
         app.add_observer(component_ui_initializer);
         app.add_observer(on_update_event_dynamic);
+
+        app.configure_sets(OnEnter(LoadingStatus::Complete), EditorConstructionSet);
+        // app.add_systems(
+        //     OnEnter(LoadingStatus::Complete),
+        //     spawn_editor.in_set(EditorConstructionSet),
+        // );
     }
 }
+#[derive(Component)]
+pub struct MainEditorCamera;
+#[derive(Component)]
+pub struct SceneViewCamera;
+
+#[derive(Resource, Asset, Clone, Reflect)]
+#[reflect(Resource)]
+pub struct AssortedIcons {
+    #[dependency]
+    pub trash: Handle<Image>,
+    #[dependency]
+    pub package_plus: Handle<Image>,
+    #[dependency]
+    pub list_plus: Handle<Image>,
+    //TODO - we do not actually need a ducky here.
+    #[dependency]
+    pub ducky: Handle<Image>,
+    #[dependency]
+    pub move_icon: Handle<Image>,
+    #[dependency]
+    pub rotate_ccw: Handle<Image>,
+    #[dependency]
+    pub maximize_2: Handle<Image>,
+    #[dependency]
+    pub eye: Handle<Image>,
+    #[dependency]
+    pub move_3d: Handle<Image>,
+    #[dependency]
+    pub folder: Handle<Image>,
+    #[dependency]
+    pub square_pen: Handle<Image>,
+    #[dependency]
+    pub checker_board: Handle<Image>,
+}
+impl FromWorld for AssortedIcons {
+    fn from_world(world: &mut World) -> Self {
+        let assets = world.resource::<AssetServer>();
+        Self {
+            trash: assets.load("lucide/trash-2-white.png"),
+            package_plus: assets.load("lucide/package-plus-white.png"),
+            list_plus: assets.load("lucide/list-plus-white.png"),
+            ducky: assets.load_with_settings(
+                "images/ducky.png",
+                |settings: &mut ImageLoaderSettings| {
+                    // Use `nearest` image sampling to preserve pixel art style.
+                    settings.sampler = ImageSampler::nearest();
+                },
+            ),
+            move_icon: assets.load("lucide/move-white.png"),
+            rotate_ccw: assets.load("lucide/rotate-ccw-white.png"),
+            maximize_2: assets.load("lucide/maximize-2-white.png"),
+            eye: assets.load("lucide/eye-white.png"),
+            move_3d: assets.load("lucide/move-3d-white.png"),
+            folder: assets.load("lucide/folder-white.png"),
+            square_pen: assets.load("lucide/square-pen-white.png"),
+            checker_board: assets.load_with_settings(
+                "images/Kenny/Checkerboard/checkerboard.png",
+                |settings: &mut ImageLoaderSettings| {
+                    settings.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
+                        address_mode_u: bevy::image::ImageAddressMode::Repeat,
+                        address_mode_v: bevy::image::ImageAddressMode::Repeat,
+                        mag_filter: ImageFilterMode::Nearest,
+                        min_filter: ImageFilterMode::Nearest,
+                        mipmap_filter: ImageFilterMode::Nearest,
+                        ..default()
+                    })
+                },
+            ),
+        }
+    }
+}
+
+#[derive(States, Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub enum LoadingStatus {
+    #[default]
+    Pending,
+    Complete,
+}
+fn editor_initialization(
+    resource_handles: Res<ResourceHandles>,
+    mut advance: ResMut<NextState<LoadingStatus>>,
+) {
+    if resource_handles.is_all_done() {
+        advance.set(LoadingStatus::Complete);
+    }
+}
+#[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
+pub struct EditorConstructionSet;
 
 pub fn spawn_editor(
     mut commands: Commands,

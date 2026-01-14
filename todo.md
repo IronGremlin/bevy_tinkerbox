@@ -12,6 +12,18 @@
 3. [ ] Make 2d Transform widget
 
 ## lil picture
+ - [ ] Add marker components to _relate_ (because just mark isn't enough) texture atlas preview visualizations so they can be despawned when they have to be updated.
+ - [ ] Add Grid UI 
+      - Drag widget for box size
+      - Text entry for padding
+      - `+ / -` buttons for both rows and colums
+  - [ ] Crack out this functionality into a widget that can be invoked by a texture_altas button
+     - Don't forget - UI for texture atlas still needs an index into the layout.
+     - Also don't forget - camera etc. needs to be gracefully cleaned up.
+  - [ ] Actually wire this up so that it saves this to a sprite.
+  - [ ] Adjust `Handle<Image>` so that it shows an ImageNode preview of the sprite
+  - [ ] For later: SubCamera / scroll controls for large images.
+  
 
 ### Sprite UI
 1. [X] Wire up file picker dialog
