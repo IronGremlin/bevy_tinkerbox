@@ -3,7 +3,7 @@ use bevy::{prelude::*, ui_widgets::observe};
 use crate::{
     ComponentUiFor, ComponentUisFor, EntityUiRoot, ImageNodeSansHandle, UiCtxt,
     editor_override_traits::{EditorHeaderUI, EditorPerFieldUI},
-    widgets::general::{FormControl, FormElement, FormElementMarker},
+    widgets::general::{FormControl, FormControlSubject, FormElement, FormElementMarker},
 };
 pub(super) fn plugin(app: &mut App) {
     app.add_observer(transform_editor_widget_spawner);
@@ -206,7 +206,7 @@ fn transform_editor_presentation(
 }
 
 impl EditorHeaderUI for Transform {
-    fn construct_header_ui(&self, ui_anchor: Entity, commands: &mut Commands) {
+    fn construct_header_ui(&self, ctxt: &UiCtxt, commands: &mut Commands) {
         let watcher = |modify: fn(Mut<TransformEditorFormControl>)| {
             observe(
                 move |source: On<Pointer<Click>>,
@@ -226,9 +226,10 @@ impl EditorHeaderUI for Transform {
             )
         };
         commands
-            .entity(ui_anchor)
-            .insert(TransformEditorFormControl::default());
-        commands.entity(ui_anchor).with_child((
+            .entity(ctxt.ui_anchor())
+            .insert(TransformEditorFormControl::default())
+            .insert(FormControlSubject);
+        commands.entity(ctxt.ui_anchor()).with_child((
             Node::default(),
             children![
                 (

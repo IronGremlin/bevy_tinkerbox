@@ -33,6 +33,7 @@ use crate::{
 };
 
 mod asset_tracking;
+pub mod drag_snap;
 mod editor_override_traits;
 mod theme;
 pub mod widgets;
@@ -50,6 +51,7 @@ impl Plugin for ComponentEditorPlugin {
         ));
         app.add_plugins((
             asset_tracking::plugin,
+            drag_snap::plugin,
             editor_override_traits::plugin,
             widgets::plugin,
         ));
@@ -62,10 +64,10 @@ impl Plugin for ComponentEditorPlugin {
         app.add_observer(on_update_event_dynamic);
 
         app.configure_sets(OnEnter(LoadingStatus::Complete), EditorConstructionSet);
-        // app.add_systems(
-        //     OnEnter(LoadingStatus::Complete),
-        //     spawn_editor.in_set(EditorConstructionSet),
-        // );
+        app.add_systems(
+            OnEnter(LoadingStatus::Complete),
+            spawn_editor.in_set(EditorConstructionSet),
+        );
     }
 }
 #[derive(Component)]
@@ -551,29 +553,28 @@ pub(crate) fn component_ui_initializer(
             return;
         }
     };
+    let component_ctxt = ComponentUiContext {
+        world_target: source.world_target,
+        component_type_registration: &source.component_type_registration,
+        the_component: component.as_partial_reflect(),
+        reg: world.resource::<AppTypeRegistry>(),
+    };
+    let step_context = ComponentUiStepContext {
+        local_ui_focus: component_card,
+        local_type_info: source.component_type_registration.type_info(),
+        local_path: "".to_string(),
+        local_name: "".to_string(),
+    };
+    let new_ui_ctx = UiCtxt::new(&component_ctxt, &step_context);
     if maybe_header_trait.is_some() {
         let my_dyn = maybe_header_trait
             .unwrap()
             .get(component.as_partial_reflect().try_as_reflect().unwrap())
             .unwrap();
-        my_dyn.construct_header_ui(component_card, &mut commands);
+        my_dyn.construct_header_ui(&new_ui_ctx, &mut commands);
     }
 
-    (ComponentUiContext {
-        world_target: source.world_target,
-        component_type_registration: &source.component_type_registration,
-        the_component: component.as_partial_reflect(),
-        reg: world.resource::<AppTypeRegistry>(),
-    })
-    .step(
-        ComponentUiStepContext {
-            local_ui_focus: component_card,
-            local_type_info: source.component_type_registration.type_info(),
-            local_path: "".to_string(),
-            local_name: "".to_string(),
-        },
-        &mut commands,
-    );
+    new_ui_ctx.next(&mut commands);
 }
 pub struct UiCtxt<'a, 'b, 'w> {
     root_context: &'a ComponentUiContext<'a, 'b, 'w>,
@@ -645,6 +646,7 @@ impl<'a, 'b, 'w> ComponentUiContext<'a, 'b, 'w> {
             //TODO - Clean this up a bit.
             // probably push this off into leaf-level functions for these match arms, treat this as
             // another matched case - it essentially is, since we're overriding step sequence.
+            let mut next_step = step_context.clone();
             let row = commands
                 .spawn((
                     Node {
@@ -666,7 +668,9 @@ impl<'a, 'b, 'w> ComponentUiContext<'a, 'b, 'w> {
             match step_context.local_path.reflect_element(self.the_component) {
                 Ok(v) => {
                     let my_dyn = editor_trait.get(v.try_as_reflect().unwrap()).unwrap();
-                    my_dyn.construct_field_ui(bucket, commands);
+
+                    next_step.local_ui_focus = bucket;
+                    my_dyn.construct_field_ui(&UiCtxt::new(&self, &next_step), commands);
                     commands.entity(bucket).insert(FieldAccessPath {
                         path: ParsedPath::parse(step_context.local_path.as_str()).unwrap(),
                         value_type_id: step_context.local_type_info.type_id(),

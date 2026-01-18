@@ -7,5 +7,9 @@ pub mod general;
 pub mod view_only_component;
 
 pub(super) fn plugin(app: &mut App) {
-    app.add_plugins((component_browser::plugin, general::plugin));
+    app.add_plugins((
+        component_browser::plugin,
+        general::plugin,
+        field_input::plugin,
+    ));
 }

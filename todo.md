@@ -8,29 +8,38 @@
     - UI indicates 'live' but unselected components, with a button to allow over-ride
        - Example: Adding a Text2d should show that a Transform is included, but not as an editable menu item.
        - Reasoning: We should only be serializing those parts of a scene that the user has supplied data for - but knowing what'll be there is still vital.
-2. [ ] Make POC for a Sprite UI
-3. [ ] Make 2d Transform widget
+2. [X] Make POC for a Sprite UI
+3. [X] Make 2d Transform widget
 
 ## lil picture
- - [ ] Add marker components to _relate_ (because just mark isn't enough) texture atlas preview visualizations so they can be despawned when they have to be updated.
- - [ ] Add Grid UI 
+ - [X] Add marker components to _relate_ (because just mark isn't enough) texture atlas preview visualizations so they can be despawned when they have to be updated.
+ - [X] Add Grid UI 
       - Drag widget for box size
       - Text entry for padding
       - `+ / -` buttons for both rows and colums
-  - [ ] Crack out this functionality into a widget that can be invoked by a texture_altas button
+  - [X] Crack out this functionality into a widget that can be invoked by a texture_altas button
      - Don't forget - UI for texture atlas still needs an index into the layout.
      - Also don't forget - camera etc. needs to be gracefully cleaned up.
-  - [ ] Actually wire this up so that it saves this to a sprite.
-  - [ ] Adjust `Handle<Image>` so that it shows an ImageNode preview of the sprite
+  - [X] Actually wire this up so that it saves this to a sprite.
   - [ ] For later: SubCamera / scroll controls for large images.
-  
+
+## lil er picture
+- [X] Refactor dragsnapstate stuff so it can be generalized as a global observer
+- [X] implement offset drag
+- [~] do something about bounds checking on the sprite atlas? Maybe?
+- [X] Wireup text-based ui controls
+- [ ] Don't actually delay sub camera controls, they belong here.
+  - [ ] Drag spritemap to translate camera
+  - [ ] set UI focus to viewport node
+  - [ ] while viewport node is focused, scroll should zoom camera
+  - [ ] Make sure both translation and zoom are processed as events so that we can do action mapping later.
 
 ### Sprite UI
 1. [X] Wire up file picker dialog
 2. [X] Make mvp UI for sprite
    - Just build a minimum to wire up the handle with some defaults to get it to show.
    - This requires loading image as asset, then assessing texture_descriptor.size to fill sprite .rect property
-3. [ ] Figure out how to do architecture for TextureAtlas preview -
+3. [X] Figure out how to do architecture for TextureAtlas preview -
     - This gets weird because we can't just operate in world-space
     - might need to mess around with doing some kinda render-layer stuff and put the UI in a separate canvas - can default picking work through an image layer canvas? I'd imagine no...
     - kicking the can on this to preserve momentum since MVP ended up easier than I'd anticpated.
@@ -53,16 +62,16 @@
 - [ ] UI for attaching children?
     - Attaching arbitrary existing entities is out of scope for now. With a file-picker we can effectively attach child scenes, which is powerful enough for most cases.
     - The reason this is different is that we need a VERY different workflow for instantiating and attaching ghost entities - this doesn't fit gracefully into our current event / reflect driven concept
-- [ ] Sprite UI
-        - [ ] Texture Atlas UI (make a grid!)
-        - [ ] Image preview
+- [X] Sprite UI
+        - [X] Texture Atlas UI (make a grid!)
+        - [X] Image preview
 - [ ] Audio Component player
 - [ ] Implement a file picker
         - Option A: Fork bevy_file_dialog to support EntityEvents
         - Option B: Implement some user interaction resource to hold a handle to the interacted UI bit while we wait for the global event to trigger, then reference that to put our file path into the UI. 
         - We probably want to fork this lib anyway because we need to update to .18 ASAP, so looks like option A?
     
-- [ ] Write our own transform handles for 2d
+- [X] Write our own transform handles for 2d
 - [ ] A UI for editing `Node` could be pretty neat but might need to wait
         - Is there an MVP here?
 - [ ] Need some concept of systems toggles for external systems
@@ -71,7 +80,7 @@
 
 # Port over sandbox code into editor package
 
- - [ ] Refactor so that required components aren't brought over automatically, and instead just listed
+ - [X] Refactor so that required components aren't brought over automatically, and instead just listed
  - [ ] Refactor so that focused entity is supplied instead of being generated
  - [ ] Make actual Scene loading / saving code
  - [ ] Write some component filtering logic to support scene (de)serialization

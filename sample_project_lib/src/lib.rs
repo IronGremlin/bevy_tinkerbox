@@ -5,7 +5,6 @@ pub mod demo;
 #[cfg(feature = "dev")]
 pub mod dev_tools;
 pub mod menus;
-pub mod scene_util;
 pub mod screens;
 pub mod theme;
 
@@ -37,7 +36,6 @@ impl Plugin for AppPlugin {
         // Add other plugins.
         app.add_plugins((
             asset_tracking::plugin,
-            scene_util::plugin,
             audio::plugin,
             demo::plugin,
             #[cfg(feature = "dev")]

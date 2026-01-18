@@ -6,7 +6,13 @@ use sample_project_lib::*;
 
 fn main() -> AppExit {
     App::new()
-        .add_plugins((DefaultPlugins, ComponentEditorPlugin))
+        .add_plugins((
+            DefaultPlugins.set(AssetPlugin {
+                file_path: "../sample_project_bin/assets".to_owned(),
+                ..default()
+            }),
+            ComponentEditorPlugin,
+        ))
         .add_systems(Startup, setup)
         .run()
 }

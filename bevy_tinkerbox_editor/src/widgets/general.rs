@@ -15,10 +15,11 @@ use bevy_ui_text_input::{
     TextInputBuffer, TextInputMode, TextInputNode, TextInputPrompt, TextInputStyle,
 };
 
-use crate::{ComponentUiFor, theme::colors};
+use crate::{theme::colors, widgets::field_input::ValueInputOutput};
 
 pub(super) fn plugin(app: &mut App) {
     app.add_observer(watch_for_close);
+    app.add_systems(Update, value_edit_dispatch);
 }
 
 pub fn scroll_area_demo<F>(that_which_is_scrolled: SpawnWith<F>) -> impl Bundle
@@ -253,12 +254,14 @@ pub fn hide_filtered_components<RootMarker, ItemMarker>(
 // World shapes for now can just be simple shapes per bevy example, we only need to prove out basic interactions and that each sub-form component makes a different shape.
 //
 #[derive(Component)]
+pub struct FormControlSubject;
+#[derive(Component)]
 #[component(on_add = form_element_marker_added)]
 pub struct FormElementMarker;
 
 fn form_element_marker_added(mut world: DeferredWorld, context: HookContext) {
     let mut find_join_point_state = world
-        .try_query::<(Entity, Option<&ComponentUiFor>, Option<&ChildOf>)>()
+        .try_query::<(Entity, Option<&FormControlSubject>, Option<&ChildOf>)>()
         .unwrap();
     let find_join_point = world.query(&mut find_join_point_state);
 
@@ -310,7 +313,15 @@ pub struct FormControl {
 }
 #[derive(EntityEvent, Clone, PartialEq, Debug, Reflect, Component)]
 #[entity_event(propagate = &'static FormElement, auto_propagate)]
-pub struct FormEvent<E: Clone + Reflect> {
-    entity: Entity,
-    event: E,
+pub struct FormDataChanged {
+    pub entity: Entity,
+}
+
+fn value_edit_dispatch(
+    q: Query<Entity, (With<FormElement>, Changed<ValueInputOutput>)>,
+    mut commands: Commands,
+) {
+    for origin in q.iter() {
+        commands.trigger(FormDataChanged { entity: origin });
+    }
 }
