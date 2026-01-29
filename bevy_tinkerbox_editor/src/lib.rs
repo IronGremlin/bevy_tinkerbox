@@ -1,10 +1,22 @@
-use std::{any::TypeId, marker::Send};
+use std::{
+    any::{Any, TypeId},
+    marker::Send,
+    ops::Deref,
+    path::Path,
+};
 
 use bevy::{
-    asset::ron::{self},
+    asset::{
+        io::file::FileAssetReader,
+        ron::{self},
+    },
     ecs::{
-        component::ComponentId, lifecycle::HookContext, reflect::ReflectCommandExt,
-        relationship::Relationship, world::DeferredWorld,
+        component::ComponentId,
+        entity::{self, EntityHashMap},
+        lifecycle::HookContext,
+        reflect::ReflectCommandExt,
+        relationship::Relationship,
+        world::DeferredWorld,
     },
     image::{ImageFilterMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor},
     input_focus::tab_navigation::{TabGroup, TabNavigationPlugin},
@@ -15,16 +27,20 @@ use bevy::{
         EnumInfo, ParsedPath, ReflectKind, TypeInfo, TypeRegistration, VariantInfo, VariantType,
         serde::TypedReflectSerializer,
     },
+    scene::DynamicEntity,
     ui_widgets::{ScrollbarPlugin, observe},
 };
-use bevy_file_dialog::FileDialogPlugin;
+use bevy_file_dialog::{EntityFileDialogExt, EntityScopedDialogEvent, FileDialogPlugin};
 use bevy_ui_text_input::TextInputPlugin;
 
 use crate::{
-    asset_tracking::ResourceHandles,
+    asset_extensions::{
+        AssetServerSaveExtension, SerializationProxies,
+        asset_tracking::{AssetLoadedEvent, ResourceHandles, load_and_watch},
+    },
     editor_override_traits::*,
     widgets::{
-        add_entity_button::add_entity_button,
+        add_entity_button::{add_entity_button, make_new_entity_ui},
         component_browser::{ComponentBrowserWidgetRoot, ComponentSelection},
         field_input::*,
         general::*,
@@ -32,7 +48,7 @@ use crate::{
     },
 };
 
-mod asset_tracking;
+mod asset_extensions;
 pub mod drag_snap;
 mod editor_override_traits;
 mod theme;
@@ -41,6 +57,7 @@ pub mod widgets;
 pub struct ComponentEditorPlugin;
 impl Plugin for ComponentEditorPlugin {
     fn build(&self, app: &mut App) {
+        app.register_type::<Text2d>();
         //TODO - it feels really weird to be initializing the text input plugin here -
         // but it's also not clear which sub module should own it.
         app.add_plugins((
@@ -50,7 +67,7 @@ impl Plugin for ComponentEditorPlugin {
             FileDialogPlugin::default(),
         ));
         app.add_plugins((
-            asset_tracking::plugin,
+            asset_extensions::plugin,
             drag_snap::plugin,
             editor_override_traits::plugin,
             widgets::plugin,
@@ -60,8 +77,12 @@ impl Plugin for ComponentEditorPlugin {
         app.init_resource::<AssortedIcons>();
         app.add_systems(Startup, editor_initialization);
         app.add_observer(root);
+        app.add_observer(scene_save);
+        app.add_observer(scene_load);
         app.add_observer(component_ui_initializer);
         app.add_observer(on_update_event_dynamic);
+
+        app.add_observer(scene_component_ui_instantiator);
 
         app.configure_sets(OnEnter(LoadingStatus::Complete), EditorConstructionSet);
         app.add_systems(
@@ -185,48 +206,336 @@ pub fn spawn_editor(
         },
         UiTargetCamera(q.single().unwrap()),
         TabGroup::default(),
-        children![(
-            Node {
-                flex_direction: FlexDirection::Row,
-                ..default()
-            },
-            Pickable {
-                should_block_lower: false,
-                is_hoverable: true,
-            },
-            children![
-                scroll_area_demo(as_bundle((
-                    Node {
-                        flex_direction: FlexDirection::Column,
-                        ..default()
-                    },
-                    children![
-                        add_entity_button(),
-                        (
-                            Node {
-                                display: Display::Grid,
-                                ..default()
-                            },
-                            SelectedEntityUiRoot,
-                        )
-                    ],
-                ))),
-                (
-                    Node {
-                        flex_direction: FlexDirection::Column,
-                        row_gap: px(3),
-                        ..default()
-                    },
-                    ComponentBrowserWidgetRoot,
-                    children![],
-                ),
-            ],
-        )],
+        children![
+            (
+                Node {
+                    width: percent(100.),
+                    height: px(16.),
+                    ..default()
+                },
+                children![
+                    (
+                        Node {
+                            width: percent(50.),
+                            height: px(16.),
+                            border: UiRect::all(px(2.)),
+                            ..default()
+                        },
+                        BorderColor::from(Srgba::WHITE),
+                        observe(|src: On<Pointer<Click>>, mut commands: Commands| {
+                            commands
+                                .entity(src.event_target())
+                                .with_dialog()
+                                .set_title("Save Scene")
+                                .set_directory("./sample_project_bin/assets/scenes")
+                                .add_filter("scene files", &["ron"])
+                                .pick_file_path();
+                        }),
+                        observe(
+                            |event: On<EntityScopedDialogEvent>, mut commands: Commands| {
+                                info!("Saved! {:?}", event);
+                                use bevy_file_dialog::EntityScopedDialogResult::*;
+                                match event.clone().result {
+                                    Pick(file_pick) => {
+                                        let path = file_pick
+                                            .path
+                                            .clone()
+                                            .to_owned()
+                                            .to_str()
+                                            .unwrap()
+                                            .to_owned();
+
+                                        commands.trigger(SaveScene(path));
+                                    }
+                                    _ => {}
+                                };
+                            }
+                        ),
+                        children![(Text::new("Save"), TextFont::from_font_size(10.))]
+                    ),
+                    (
+                        Node {
+                            width: percent(50.),
+                            height: px(16.),
+                            border: UiRect::all(px(2.)),
+                            ..default()
+                        },
+                        BorderColor::from(Srgba::WHITE),
+                        observe(|src: On<Pointer<Click>>, mut commands: Commands| {
+                            commands
+                                .entity(src.event_target())
+                                .with_dialog()
+                                .set_title("Load Scene")
+                                .set_directory("./sample_project_bin/assets/scenes")
+                                .add_filter("scene files", &["ron"])
+                                .pick_file_path();
+                        }),
+                        observe(
+                            |event: On<EntityScopedDialogEvent>, mut commands: Commands| {
+                                info!("Loaded! {:?}", event);
+                                use bevy_file_dialog::EntityScopedDialogResult::*;
+                                match event.clone().result {
+                                    Pick(file_pick) => {
+                                        let full_path = file_pick.path.clone().to_owned();
+                                        //TODO - figure out how to do this without hard-coding this string.
+                                        let root = FileAssetReader::get_base_path()
+                                            .parent()
+                                            .unwrap()
+                                            .join("sample_project_bin")
+                                            .join("assets");
+
+                                        let fp_ = full_path.clone();
+                                        let fp = fp_.to_string_lossy();
+                                        let r_ = root.clone();
+                                        let r = r_.to_string_lossy();
+
+                                        let path = full_path
+                                            .strip_prefix(root)
+                                            .map_err(move |e| {
+                                                info!("Could not strip {r} path from {fp}",);
+                                                info!("{:?}", e.to_string());
+                                                e
+                                            })
+                                            .unwrap()
+                                            .to_str()
+                                            .unwrap()
+                                            .to_owned();
+                                        commands.trigger(LoadScene(path));
+                                    }
+                                    _ => {}
+                                };
+                            }
+                        ),
+                        children![(Text::new("Load"), TextFont::from_font_size(10.))]
+                    )
+                ],
+            ),
+            (
+                Node {
+                    flex_direction: FlexDirection::Row,
+                    ..default()
+                },
+                Pickable {
+                    should_block_lower: false,
+                    is_hoverable: true,
+                },
+                children![
+                    scroll_area_demo(as_bundle((
+                        Node {
+                            flex_direction: FlexDirection::Column,
+                            ..default()
+                        },
+                        children![
+                            add_entity_button(),
+                            (
+                                Node {
+                                    display: Display::Grid,
+                                    ..default()
+                                },
+                                SelectedEntityUiRoot,
+                            )
+                        ],
+                    ))),
+                    (
+                        Node {
+                            flex_direction: FlexDirection::Column,
+                            row_gap: px(3),
+                            ..default()
+                        },
+                        ComponentBrowserWidgetRoot,
+                        children![],
+                    ),
+                ],
+            )
+        ],
     ));
 }
 
-//TODO - This should eventually represent some concept of displayed and actively edited serialization targets
-// vs. implicit 'required' ride-along components
+#[derive(Event)]
+struct SaveScene(pub String);
+#[derive(Event)]
+struct LoadScene(pub String);
+
+fn scene_save(src: On<SaveScene>, mut world: DeferredWorld) {
+    let mut ui_roots = world
+        .try_query::<&EntityUiRoot>()
+        .expect("Failed to instantiate query");
+    let type_registry = world.resource::<AppTypeRegistry>();
+    let proxy_registry = world.resource::<SerializationProxies>();
+
+    let mut tiny_world = World::new();
+    tiny_world.insert_resource(type_registry.clone());
+    let mut mapper = EntityHashMap::<Entity>::new();
+    let mut aggregate: HashSet<TypeId> = HashSet::new();
+
+    ui_roots.iter(&world).for_each(|ui_root| {
+        let desired_serialization_components: HashSet<TypeId> = ui_root
+            .desired_component_set
+            .iter()
+            .map(|t_id| {
+                let serialization_proxy = proxy_registry.get_proxy(&t_id);
+                *(serialization_proxy.unwrap_or(t_id))
+            })
+            .collect();
+        info!(
+            "Entity: {:?} with {:?} components",
+            ui_root.component_holder,
+            desired_serialization_components.len()
+        );
+        for x in desired_serialization_components.iter() {
+            aggregate.insert(x.clone());
+        }
+
+        let smol_scene = DynamicSceneBuilder::from_world(&*world)
+            .with_component_filter(SceneFilter::Allowlist(desired_serialization_components))
+            .extract_entity(ui_root.component_holder)
+            .build();
+        let r =
+            smol_scene.write_to_world_with(&mut tiny_world, &mut mapper, &type_registry.clone());
+        if r.is_err() {
+            info!("{:?}", r);
+        }
+    });
+    let big_scene = DynamicSceneBuilder::from_world(&tiny_world)
+        .with_component_filter(SceneFilter::Allowlist(aggregate))
+        .deny_all_resources()
+        .extract_entities(mapper.iter().map(|(_k, v)| *v))
+        .build();
+
+    for ent in big_scene.entities.iter() {
+        info!(
+            "Saving: Entity: {:?} with {:?} components",
+            ent.entity,
+            ent.components.len()
+        );
+    }
+    AssetServer::save_dynamic_scene(Path::new(&src.0), type_registry, big_scene);
+}
+
+fn scene_bounce(
+    src: On<AssetLoadedEvent<DynamicScene>>,
+    scenes: Res<Assets<DynamicScene>>,
+    proxies: Res<SerializationProxies>,
+    find_anchor: Query<Entity, With<SelectedEntityUiRoot>>,
+    mut commands: Commands,
+) {
+    let Ok(anchor) = find_anchor.single() else {
+        return;
+    };
+    let dyn_scene = scenes
+        .get(src.handle.id())
+        .expect("Dynamic scene asset failed to exist");
+    for dyn_entity in dyn_scene.entities.iter() {
+        let world_target = commands.spawn_empty().id();
+        let new_entity_ui = commands.spawn_empty().id();
+        commands.entity(anchor).add_child(new_entity_ui);
+        commands
+            .entity(new_entity_ui)
+            .insert(make_new_entity_ui(world_target));
+
+        for box_component in dyn_entity.components.iter() {
+            let og_tinfo = box_component
+                .get_represented_type_info()
+                .expect("Valid Type Info");
+            let og_tid = og_tinfo.type_id().clone();
+            let type_id = proxies.get_target(og_tinfo.type_path()).unwrap_or(&og_tid);
+
+            commands.entity(world_target).insert_reflect(
+                box_component
+                    .reflect_clone()
+                    .expect("Failed to clone component"),
+            );
+            commands.trigger(ComponentInstantiation {
+                entity: new_entity_ui,
+                type_id: type_id.clone(),
+            });
+        }
+    }
+    commands.entity(src.event_target()).despawn();
+}
+
+fn scene_load(src: On<LoadScene>, asset_server: Res<AssetServer>, mut commands: Commands) {
+    let asset_bucket = commands.spawn_empty().id();
+    commands.entity(asset_bucket).observe(scene_bounce);
+    load_and_watch::<DynamicScene>(asset_bucket, &mut commands, &src.0, &*asset_server);
+}
+
+#[derive(EntityEvent, Clone)]
+struct ComponentInstantiation {
+    entity: Entity,
+    type_id: TypeId,
+}
+
+// TODO -
+// This is basically the same function as 'root', but we
+// need to do some work to go track down the ui-root inside the scroll container,
+// and then also we shouldn't attempt to instantiate new components because we've already instantiated these
+// world targets.
+// There are ways to tie these together into one operation that isn't a white-hot pile of dogshit,
+// but this works for now so we're leaving it be.
+fn scene_component_ui_instantiator(
+    src: On<ComponentInstantiation>,
+    world: DeferredWorld,
+    mut commands: Commands,
+) {
+    let mut window_root = src.event_target();
+    let type_id = src.type_id;
+    let reg = world.resource::<AppTypeRegistry>();
+    let mut all_my_kids = world.try_query::<&Children>().unwrap();
+    let Some(mut component_ui_state) = all_my_kids
+        .query(&world)
+        .iter_descendants(window_root.clone())
+        .find_map(|ent| {
+            if let Some(ui_state) = world.entity(ent).get::<EntityUiRoot>() {
+                window_root = ent;
+                return Some(ui_state.clone());
+            } else {
+                None
+            }
+        })
+    else {
+        panic!("bummer");
+    };
+    component_ui_state.desired_component_set.insert(type_id);
+    let the_one_in_the_world = component_ui_state.component_holder;
+    let reqs = world.required_components(type_id);
+    let r = reg.read();
+    for component_type_id in reqs {
+        let registry = reg.read();
+        let Some(root_type_info) = registry.get(component_type_id) else {
+            info!("Failed to find registration for ID {:?}", component_type_id);
+            continue;
+        };
+        let (was_in_ridealong_list, was_in_active_list) = (
+            !component_ui_state
+                .ride_along_components
+                .insert(component_type_id),
+            component_ui_state
+                .desired_component_set
+                .contains(&component_type_id),
+        );
+        let name = root_type_info.type_info().type_path_table().short_path();
+        if was_in_active_list || was_in_ridealong_list {
+            info!(
+                "Component {:?} already exists on entity :[ was_active: {:?}, was_ride_along: {:?}]",
+                name, was_in_active_list, was_in_ridealong_list
+            );
+            continue;
+        }
+        commands
+            .entity(window_root)
+            .with_child(view_only_component(name.to_owned(), component_type_id));
+    }
+    let registration = r.get(type_id).unwrap();
+
+    commands.trigger(UiRequestedFor {
+        component_ui_root: window_root,
+        world_target: the_one_in_the_world,
+        component_type_registration: registration.clone(),
+    });
+    commands.entity(window_root).insert(component_ui_state);
+}
+
 #[derive(Component, Clone)]
 pub struct EntityUiRoot {
     pub component_holder: Entity,
@@ -384,13 +693,13 @@ impl WorldRequiredComponentExtension for World {
 }
 
 pub(crate) fn root(source: On<ComponentSelection>, dworld: DeferredWorld, mut commands: Commands) {
-    let window_root = source.event_target();
+    let mut window_root = source.event_target();
 
     let reg = dworld.resource::<AppTypeRegistry>();
 
     let mut component_ui_state = match dworld.entity(window_root).get::<EntityUiRoot>() {
         Some(x) => x.clone(),
-        None => panic!("Uninitialized world entity during component UI creation"),
+        None => panic!("Couldn't find valid EntityUiRoot"),
     };
 
     let type_id = source.base;

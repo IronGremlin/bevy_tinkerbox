@@ -3,11 +3,11 @@
 //! Outright robbed from bevy_cli's new_2d template implementation
 use std::collections::VecDeque;
 
-use bevy::prelude::*;
+use bevy::{asset::AssetPath, platform::collections::HashMap, prelude::*};
 
 pub(super) fn plugin(app: &mut App) {
     app.init_resource::<ResourceHandles>();
-    app.add_systems(PreUpdate, load_resource_assets);
+    app.add_systems(PreUpdate, (asset_watcher, load_resource_assets));
 }
 
 pub trait LoadResource {
@@ -35,6 +35,75 @@ impl LoadResource for App {
             }));
         self
     }
+}
+
+// Note, this design is limited to one asset pending per entity.
+//
+// Even if we were to queue the untyped assets, this design fundamentally
+// exposes a race condition between multiple asset loads of the same type per entity,
+// and it also may leak observers.
+//
+// So we -assume- that the calling context uses disposable entities to watch and wait for these
+// handles, and stores further information about what we're loading these assets for in those one-shot containers.
+
+#[derive(Component)]
+struct PendingAsset(pub UntypedHandle);
+
+#[derive(EntityEvent, Clone)]
+struct TypeErasedAssetLoadedEvent {
+    entity: Entity,
+    handle: UntypedHandle,
+}
+
+#[derive(EntityEvent, Clone)]
+pub struct AssetLoadedEvent<A: Asset> {
+    pub entity: Entity,
+    pub handle: Handle<A>,
+}
+
+fn asset_watcher(
+    asset_server: Res<AssetServer>,
+    pending_assets: Query<(Entity, &PendingAsset)>,
+    mut commands: Commands,
+) {
+    pending_assets.iter().for_each(|(entity, handle)| {
+        if asset_server.is_loaded_with_dependencies(handle.0.id()) {
+            commands.trigger(TypeErasedAssetLoadedEvent {
+                entity,
+                handle: handle.0.clone(),
+            });
+        }
+    });
+}
+
+pub fn load_and_watch<A: Asset>(
+    entity: Entity,
+    commands: &mut Commands,
+    asset_path: &str,
+    asset_server: &AssetServer,
+) {
+    let handle = asset_server.load::<A>(asset_path.to_owned()).untyped();
+
+    commands.entity(entity).observe(
+        |src: On<TypeErasedAssetLoadedEvent>,
+         q: Query<&PendingAsset>,
+         mut sub_commands: Commands| {
+            let Ok(untyped_handle) = q.get(src.event_target()) else {
+                return;
+            };
+            let Ok(typed_handle) = untyped_handle.0.clone().try_typed::<A>() else {
+                return;
+            };
+            sub_commands.trigger(AssetLoadedEvent::<A> {
+                entity: src.event_target(),
+                handle: typed_handle,
+            });
+            sub_commands
+                .entity(src.event_target())
+                .remove::<PendingAsset>();
+        },
+    );
+    commands.entity(entity).insert(PendingAsset(handle));
 }
 
 /// A function that inserts a loaded resource.

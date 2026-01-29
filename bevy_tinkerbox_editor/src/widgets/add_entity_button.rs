@@ -33,7 +33,7 @@ pub(crate) fn add_entity_button() -> impl Bundle {
     )
 }
 
-pub(crate) fn make_new_entity_ui(entity: Entity) -> impl Bundle {
+pub fn make_new_entity_ui(entity: Entity) -> impl Bundle {
     scroll_area_demo(as_bundle((
         Node {
             display: Display::Grid,

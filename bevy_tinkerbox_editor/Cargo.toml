@@ -13,6 +13,7 @@ bevy_file_dialog = {workspace = true}
 zvariant = {workspace = true}
 zvariant_derive = {workspace = true}
 zvariant_utils = {workspace = true}
+thiserror = {workspace = true}
 
 [features]
 # Default to a native dev build.
@@ -22,6 +23,7 @@ dev = [
     "bevy/dynamic_linking",
     "bevy/bevy_dev_tools",
     "bevy/bevy_ui_debug",
+    "bevy/serialize",
     # Improve error messages coming from Bevy
     "bevy/track_location",
     "bevy/experimental_bevy_ui_widgets",
