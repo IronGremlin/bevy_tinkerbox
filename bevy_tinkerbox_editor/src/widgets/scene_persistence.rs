@@ -144,14 +144,14 @@ pub fn save_scene_dialog(src: On<Pointer<Click>>, mut commands: Commands) {
         .set_title("Save Scene")
         .set_directory("./sample_project_bin/assets/scenes")
         .add_filter("scene files", &["ron"])
-        .pick_file_path();
+        .save_file(Vec::new());
 }
 pub fn save_scene_with_path(event: On<EntityScopedDialogEvent>, mut commands: Commands) {
     info!("Saved! {:?}", event);
     use bevy_file_dialog::EntityScopedDialogResult::*;
     match event.clone().result {
-        Pick(file_pick) => {
-            let path = file_pick
+        Save(file_save) => {
+            let path = file_save
                 .path
                 .clone()
                 .to_owned()
