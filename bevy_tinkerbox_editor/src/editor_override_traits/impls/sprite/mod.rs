@@ -8,10 +8,10 @@ use bevy::{
 };
 
 use crate::{
-    UiCtxt,
     asset_extensions::editor_assets::AssortedIcons,
     drag_snap::{DragSnapState2d, SnapDrag, SnapDragEnd, WorldSnap2dGrid},
     editor_override_traits::{EditorPerFieldUI, impls::sprite::texture_atlas_layout::GridArgs},
+    ui_context_core::UiCtxt,
     widgets::{
         field_input::{ValueInputInput, ValueInputOutput, better_value_input_field},
         general::{

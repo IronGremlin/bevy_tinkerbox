@@ -1,8 +1,9 @@
 use bevy::{prelude::*, ui_widgets::observe};
 
 use crate::{
-    ComponentUiFor, ComponentUisFor, EntityUiRoot, ImageNodeSansHandle, UiCtxt,
+    ComponentUiFor, ComponentUisFor, EntityUiRoot, ImageNodeSansHandle,
     editor_override_traits::{EditorHeaderUI, EditorPerFieldUI},
+    ui_context_core::UiCtxt,
     widgets::general::{FormControl, FormControlSubject, FormElement, FormElementMarker},
 };
 pub(super) fn plugin(app: &mut App) {

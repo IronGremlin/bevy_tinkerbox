@@ -1,9 +1,9 @@
 use crate::{
     DynamicComponentUiUpdateEvent, FieldAccessPath, FieldUiRequestedFor, ImageNodeSansHandle,
-    UiCtxt,
     editor_override_traits::{
         EditorFieldUI, ReflectEditorFieldUI, ReflectEditorHeaderUI, ReflectEditorPerFieldUI,
     },
+    ui_context_core::UiCtxt,
 };
 use bevy::{
     asset::io::file::FileAssetReader, ecs::world::DeferredWorld, image::ImageLoader, prelude::*,

@@ -3,10 +3,10 @@
 1. Big ole refactor to make shit less embarassing!
 
 ## Big picture
- - [ ] Clean up editor lib.rs
-  - [ ] Move UiCtxt and supporting types to its own module
-  - [ ] Move editor asset stuff to its own module
-  - [ ] Move scene loading actions to their own widget module
+ - [X] Clean up editor lib.rs
+  - [X] Move UiCtxt and supporting types to its own module
+  - [X] Move editor asset stuff to its own module
+  - [X] Move scene loading actions to their own widget module
   - [ ] Find something to do with `ImageNodeSansHandle`
 - [ ] Start refactoring to make use of feathers & theming
   - [ ] Move that god awful enum handling code to use somekinda drop down

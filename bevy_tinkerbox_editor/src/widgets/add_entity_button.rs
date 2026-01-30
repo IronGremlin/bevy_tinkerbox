@@ -1,7 +1,8 @@
 use bevy::{platform::collections::HashSet, prelude::*, ui_widgets::observe};
 
 use crate::{
-    EntityUiRoot, ImageNodeSansHandle, SelectedEntityUiRoot,
+    EntityUiRoot, ImageNodeSansHandle,
+    ui_context_core::SelectedEntityUiRoot,
     widgets::{
         component_browser::{
             ComponentBrowserOpenRequest, ComponentBrowserWidgetRoot, component_browser_widget,

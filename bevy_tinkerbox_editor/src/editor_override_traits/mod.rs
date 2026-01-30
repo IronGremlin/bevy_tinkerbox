@@ -1,6 +1,7 @@
 use bevy::{app::App, ecs::system::Commands, reflect::reflect_trait};
 
-use crate::UiCtxt;
+use crate::ui_context_core::UiCtxt;
+
 pub mod impls;
 #[reflect_trait]
 pub trait EditorHeaderUI {

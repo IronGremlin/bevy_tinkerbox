@@ -9,11 +9,12 @@ use bevy::{
 use bevy_file_dialog::{EntityFileDialogExt, EntityScopedDialogEvent};
 
 use crate::{
-    EntityUiRoot, SelectedEntityUiRoot,
+    EntityUiRoot,
     asset_extensions::{
         AssetServerSaveExtension, SerializationProxies,
         asset_tracking::{AssetLoadedEvent, load_and_watch},
     },
+    ui_context_core::SelectedEntityUiRoot,
     widgets::add_entity_button::make_new_entity_ui,
 };
 

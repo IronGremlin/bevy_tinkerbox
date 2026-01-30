@@ -25,7 +25,8 @@ use bevy_ui_text_input::TextInputBuffer;
 use cosmic_text::Edit;
 use serde::de::DeserializeSeed;
 
-use crate::{DynamicComponentUiUpdateEvent, FieldAccessPath};
+use crate::DynamicComponentUiUpdateEvent;
+use crate::ui_context_core::FieldAccessPath;
 
 pub(super) fn plugin(app: &mut App) {
     app.add_systems(Update, update_input_text);
