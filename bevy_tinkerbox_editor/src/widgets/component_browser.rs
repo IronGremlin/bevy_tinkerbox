@@ -28,10 +28,10 @@ pub(crate) fn component_browser_widget(
         Node {
             flex_direction: FlexDirection::Column,
             row_gap: px(3),
+            border_radius: BorderRadius::all(px(3)),
             ..default()
         },
         BackgroundColor(colors::gry_nut().into()),
-        BorderRadius::all(px(3)),
         Children::spawn((
             Spawn(centered((
                 Text::new("Add Components"),

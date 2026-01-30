@@ -8,7 +8,7 @@ use bevy::{
 };
 
 use crate::{
-    AssortedIcons, LoadingStatus, UiCtxt,
+    AssortedIcons, UiCtxt,
     drag_snap::{DragSnapState2d, SnapDrag, SnapDragEnd, WorldSnap2dGrid},
     editor_override_traits::{EditorPerFieldUI, impls::sprite::texture_atlas_layout::GridArgs},
     widgets::{
@@ -148,9 +148,9 @@ fn initialize_texture_atlas_layout_ui(
             Camera2d,
             Camera {
                 order: 1,
-                target: RenderTarget::Image(camera_canvas.clone().into()),
                 ..default()
             },
+            RenderTarget::Image(camera_canvas.clone().into()),
             Transform::from_scale(Vec2::splat(0.25).extend(1.))
                 .with_translation((0.5 * size_of_image.as_vec2()).extend(1.)),
             RenderLayers::layer(1),
@@ -504,9 +504,9 @@ struct OpenTextureAtlasUi {
 
 impl EditorPerFieldUI for Sprite {
     fn construct_per_field_ui(&self, ctxt: &UiCtxt, commands: &mut Commands) {
-        let (world_target, ui_anchor) = (ctxt.world_target(), ctxt.ui_anchor());
+        let (world_target, _ui_anchor) = (ctxt.world_target(), ctxt.ui_anchor());
 
-        let handle_click = move |src: On<Pointer<Click>>,
+        let handle_click = move |_src: On<Pointer<Click>>,
                                  sprites: Query<&Sprite>,
                                  layouts: Res<Assets<TextureAtlasLayout>>,
                                  mut commands: Commands| {

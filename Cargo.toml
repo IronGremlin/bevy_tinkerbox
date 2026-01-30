@@ -3,13 +3,14 @@ members = ["sample_project_lib","sample_project_bin", "bevy_tinkerbox_editor", "
 resolver = "3"
 
 [workspace.dependencies]
-bevy = "0.17.3"
-bevy_ui_text_input = "0.6.0"
-cosmic-text = "0.14.0"
+bevy = "0.18"
+bevy_ui_text_input = "0.7.0"
+ron = "0.12"
+cosmic-text = "0.16.0"
 rand = "0.9"
 serde = "1.0.228"
 thiserror = "2.0"
 zvariant  = "=5.8.0"
 zvariant_derive = "=5.8.0"
 zvariant_utils = "=3.2.1"
-bevy_file_dialog = { git = "https://github.com/IronGremlin/bevy_file_dialog.git", branch = "add_entity_event_support" }
+bevy_file_dialog = { git = "https://github.com/IronGremlin/bevy_file_dialog.git", branch = "bevy_0.18" }

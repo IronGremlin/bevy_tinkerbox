@@ -1,13 +1,11 @@
-use bevy::asset::{AssetPath, ReflectHandle, StrongHandle, ron};
 use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
-use bevy::reflect::TypeRegistry;
-use bevy::reflect::serde::ReflectSerializerProcessor;
+
 use bevy::scene::serde::SceneSerializer;
 use bevy::tasks::IoTaskPool;
+use ron;
 
 use std::any::TypeId;
-use std::ops::Deref;
 use std::path::Path;
 use std::{fs::File, io::Write};
 

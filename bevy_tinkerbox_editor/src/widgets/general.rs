@@ -77,6 +77,7 @@ where
                 Children::spawn(Spawn((
                     Node {
                         position_type: PositionType::Absolute,
+                        border_radius: BorderRadius::all(px(4)),
                         ..default()
                     },
                     Hovered::default(),
@@ -89,7 +90,6 @@ where
                         out: colors::GRAY2.into(),
                         over: colors::WHITE.into(),
                     },
-                    BorderRadius::all(px(4)),
                     CoreScrollbarThumb,
                 ))),
             ));

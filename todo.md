@@ -1,10 +1,29 @@
 # Up Next
 
-1. Scene saving/loading. ~~Shit.~~
-2. Migrate to 0.18
+1. Big ole refactor to make shit less embarassing!
 
 ## Big picture
-
+ - [ ] Clean up editor lib.rs
+  - [ ] Move UiCtxt and supporting types to its own module
+  - [ ] Move editor asset stuff to its own module
+  - [ ] Move scene loading actions to their own widget module
+  - [ ] Find something to do with `ImageNodeSansHandle`
+- [ ] Start refactoring to make use of feathers & theming
+  - [ ] Move that god awful enum handling code to use somekinda drop down
+  - [ ] Put a file / etc set of dropdown menus up top
+  - [ ] Investigate documentation tooltips?
+  - [ ] Use that delicious new color picker ui to pick some colors
+- [ ] Fixup your silly transform widget
+  - [ ] Make it track actual transform state on load
+  - [ ] Make it populated actual transform state back to ui on edit
+  - [ ] Make the buttons in the UI make sense - these should probably be lock buttons not toggle.
+  - [ ] Refactor the related code to be not hot garbage also
+- [ ] Update your text edit stuff to use the better API you introduced with TextureAtlas UI
+- [ ] Make a UI for CHILDREN, scaaaarrrry
+  - [ ] Add remove entity button first
+  - [ ] V1 is add/remove entites from child, we don't care about order
+  - [ ] V2 is find a way to care about ordering
+  - [ ] Investigate feasibility of not making this an infininitely expanding tree, and just jump to another entry on the flat list - UI is so info dense anyway I'm not sure egui's way of presenting entities makes sense here
 
 
 # missing scene editor concepts

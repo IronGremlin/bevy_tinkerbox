@@ -3,7 +3,7 @@
 //! Outright robbed from bevy_cli's new_2d template implementation
 use std::collections::VecDeque;
 
-use bevy::{asset::AssetPath, platform::collections::HashMap, prelude::*};
+use bevy::prelude::*;
 
 pub(super) fn plugin(app: &mut App) {
     app.init_resource::<ResourceHandles>();

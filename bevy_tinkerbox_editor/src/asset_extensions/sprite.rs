@@ -1,8 +1,6 @@
-use std::{any::TypeId, path::Path};
-
 use bevy::{
     asset::AssetPath,
-    ecs::{lifecycle::HookContext, world::DeferredWorld},
+    ecs::world::DeferredWorld,
     prelude::*,
 };
 use serde::Serialize;

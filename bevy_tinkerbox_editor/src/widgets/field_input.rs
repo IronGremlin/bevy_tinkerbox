@@ -1,7 +1,7 @@
 use std::any::TypeId;
 
-use bevy::asset::ron;
-use bevy::asset::ron::Deserializer;
+use ron::Deserializer;
+use ron;
 
 use bevy::reflect::serde::ReflectDeserializer;
 

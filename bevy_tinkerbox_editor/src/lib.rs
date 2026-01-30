@@ -1,22 +1,10 @@
-use std::{
-    any::{Any, TypeId},
-    marker::Send,
-    ops::Deref,
-    path::Path,
-};
+use std::{any::TypeId, marker::Send, path::Path};
 
 use bevy::{
-    asset::{
-        io::file::FileAssetReader,
-        ron::{self},
-    },
+    asset::io::file::FileAssetReader,
     ecs::{
-        component::ComponentId,
-        entity::{self, EntityHashMap},
-        lifecycle::HookContext,
-        reflect::ReflectCommandExt,
-        relationship::Relationship,
-        world::DeferredWorld,
+        component::ComponentId, entity::EntityHashMap, lifecycle::HookContext,
+        reflect::ReflectCommandExt, relationship::Relationship, world::DeferredWorld,
     },
     image::{ImageFilterMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor},
     input_focus::tab_navigation::{TabGroup, TabNavigationPlugin},
@@ -27,7 +15,6 @@ use bevy::{
         EnumInfo, ParsedPath, ReflectKind, TypeInfo, TypeRegistration, VariantInfo, VariantType,
         serde::TypedReflectSerializer,
     },
-    scene::DynamicEntity,
     ui_widgets::{ScrollbarPlugin, observe},
 };
 use bevy_file_dialog::{EntityFileDialogExt, EntityScopedDialogEvent, FileDialogPlugin};
@@ -356,7 +343,7 @@ struct SaveScene(pub String);
 #[derive(Event)]
 struct LoadScene(pub String);
 
-fn scene_save(src: On<SaveScene>, mut world: DeferredWorld) {
+fn scene_save(src: On<SaveScene>, world: DeferredWorld) {
     let mut ui_roots = world
         .try_query::<&EntityUiRoot>()
         .expect("Failed to instantiate query");
@@ -623,11 +610,11 @@ fn component_ui_despawner(mut world: DeferredWorld, context: HookContext) {
                 .collect::<Vec<ComponentId>>();
 
             let mut targets: Vec<Entity> = Vec::new();
-            let Some(kids) = world.entity(ui).get_components::<&Children>() else {
+            let Ok(kids) = world.entity(ui).get_components::<&Children>() else {
                 panic!("failed to initialize children for root");
             };
             for kid in kids.iter() {
-                let Some(ride_along) = world.entity(kid).get_components::<&RideAlongComponent>()
+                let Ok(ride_along) = world.entity(kid).get_components::<&RideAlongComponent>()
                 else {
                     continue;
                 };
@@ -693,7 +680,7 @@ impl WorldRequiredComponentExtension for World {
 }
 
 pub(crate) fn root(source: On<ComponentSelection>, dworld: DeferredWorld, mut commands: Commands) {
-    let mut window_root = source.event_target();
+    let window_root = source.event_target();
 
     let reg = dworld.resource::<AppTypeRegistry>();
 
@@ -718,12 +705,11 @@ pub(crate) fn root(source: On<ComponentSelection>, dworld: DeferredWorld, mut co
         return;
     }
     if component_ui_state.ride_along_components.remove(&type_id) {
-        let Some(kids) = dworld.entity(window_root).get_components::<&Children>() else {
+        let Ok(kids) = dworld.entity(window_root).get_components::<&Children>() else {
             panic!("failed to initialize children for root");
         };
         for kid in kids.iter() {
-            let Some(ride_along) = dworld.entity(kid).get_components::<&RideAlongComponent>()
-            else {
+            let Ok(ride_along) = dworld.entity(kid).get_components::<&RideAlongComponent>() else {
                 continue;
             };
 
@@ -825,7 +811,7 @@ pub(crate) fn component_ui_initializer(
     //
 
     let mut kidx: usize = 0;
-    let Some(kids) = world
+    let Ok(kids) = world
         .entity(source.component_ui_root)
         .get_components::<&Children>()
     else {
@@ -833,7 +819,7 @@ pub(crate) fn component_ui_initializer(
         return;
     };
     for kid in kids.iter() {
-        if let Some(_ride_along) = world.entity(kid).get_components::<&RideAlongComponent>() {
+        if let Ok(_ride_along) = world.entity(kid).get_components::<&RideAlongComponent>() {
             break;
         } else {
             kidx = kidx + 1;
@@ -1371,8 +1357,8 @@ fn enum_subelement_observer(
         .entity(source.event_target())
         .get_components::<&FieldAccessPath>()
     {
-        Some(f) => f,
-        None => {
+        Ok(f) => f,
+        Err(_) => {
             info!("Failed to locate ComponentFieldUiFor");
             return;
         }
@@ -1388,8 +1374,8 @@ fn enum_subelement_observer(
         .entity(source.event_target())
         .get_components::<&EnumMetadata>()
     {
-        Some(f) => f,
-        None => {
+        Ok(f) => f,
+        Err(_) => {
             info!("Failed to locate EnumMetadata");
             return;
         }
