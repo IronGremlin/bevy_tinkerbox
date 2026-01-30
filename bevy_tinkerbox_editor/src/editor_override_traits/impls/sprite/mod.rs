@@ -8,7 +8,8 @@ use bevy::{
 };
 
 use crate::{
-    AssortedIcons, UiCtxt,
+    UiCtxt,
+    asset_extensions::editor_assets::AssortedIcons,
     drag_snap::{DragSnapState2d, SnapDrag, SnapDragEnd, WorldSnap2dGrid},
     editor_override_traits::{EditorPerFieldUI, impls::sprite::texture_atlas_layout::GridArgs},
     widgets::{

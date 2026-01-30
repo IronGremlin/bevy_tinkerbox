@@ -11,6 +11,7 @@ use std::{fs::File, io::Write};
 
 use crate::asset_extensions::sprite::SpriteShadow;
 pub mod asset_tracking;
+pub mod editor_assets;
 pub mod sprite;
 pub(super) fn plugin(app: &mut App) {
     app.init_resource::<SerializationProxies>();
