@@ -6,8 +6,13 @@ use crate::{
     ui_context_core::UiCtxt,
 };
 use bevy::{
-    asset::io::file::FileAssetReader, ecs::world::DeferredWorld, image::ImageLoader, prelude::*,
-    ui_widgets::observe,
+    asset::io::file::FileAssetReader,
+    ecs::world::DeferredWorld,
+    feathers::{controls::checkbox, theme::ThemedText},
+    image::ImageLoader,
+    prelude::*,
+    ui::Checked,
+    ui_widgets::{ValueChange, checkbox_self_update, observe},
 };
 use bevy_file_dialog::{EntityFileDialogExt, EntityScopedDialogEvent};
 pub mod sprite;
@@ -33,10 +38,11 @@ fn manually_registering_trait_data_for_fun_and_profit(reg: ResMut<AppTypeRegistr
 
 impl EditorFieldUI for bool {
     fn construct_field_ui(&self, ctxt: &UiCtxt, commands: &mut Commands) {
-        let click_watcher = observe(
-            |source: On<Pointer<Click>>, world: DeferredWorld, mut commands: Commands| {
+        let click_watcher = observe(checkbox_self_update);
+        let watcher = observe(
+            |source: On<ValueChange<bool>>, world: DeferredWorld, mut commands: Commands| {
                 let my_cap = world
-                    .entity(source.entity)
+                    .entity(source.event_target())
                     .get_components::<&FieldAccessPath>()
                     .unwrap();
 
@@ -46,7 +52,7 @@ impl EditorFieldUI for bool {
                 let state = my_cap.path.element::<bool>(component).unwrap();
 
                 commands.trigger(DynamicComponentUiUpdateEvent::new(
-                    source.entity,
+                    source.event_target(),
                     Box::new(!state.clone()),
                     my_cap.clone(),
                 ));
@@ -63,29 +69,30 @@ impl EditorFieldUI for bool {
                     .get_reflect(my_cap.owning_entity, my_cap.component_type_id)
                     .unwrap();
                 let state = my_cap.path.element::<bool>(component).unwrap();
-                commands.entity(source.component_ui_root).insert(if *state {
-                    BackgroundColor::from(Srgba::GREEN)
+                if *state {
+                    commands.entity(source.component_ui_root).insert(Checked);
                 } else {
-                    BackgroundColor::from(Srgba::BLACK)
-                });
+                    commands
+                        .entity(source.component_ui_root)
+                        .remove::<Checked>();
+                }
             },
         );
-        commands.entity(ctxt.ui_anchor()).insert((
-            Node {
-                width: px(12.0),
-                height: px(12.0),
-                border: UiRect::all(px(1.)),
-                ..default()
-            },
-            BorderColor::all(Srgba::WHITE),
-            if *self {
-                BackgroundColor::from(Srgba::GREEN)
-            } else {
-                BackgroundColor::from(Srgba::BLACK)
-            },
-            click_watcher,
-            world_watcher,
-        ));
+        if *self {
+            commands.entity(ctxt.ui_anchor()).insert((
+                checkbox(Checked, Spawn((Text::new(ctxt.path()), ThemedText))),
+                click_watcher,
+                watcher,
+                world_watcher,
+            ));
+        } else {
+            commands.entity(ctxt.ui_anchor()).insert((
+                checkbox((), Spawn((Text::new(ctxt.path()), ThemedText))),
+                click_watcher,
+                watcher,
+                world_watcher,
+            ));
+        };
     }
 }
 

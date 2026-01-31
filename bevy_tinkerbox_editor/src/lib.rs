@@ -5,11 +5,17 @@ use bevy::{
         component::ComponentId, lifecycle::HookContext, reflect::ReflectCommandExt,
         relationship::Relationship, world::DeferredWorld,
     },
+    feathers::{
+        FeathersPlugin,
+        dark_theme::create_dark_theme,
+        theme::{ThemeBackgroundColor, UiTheme},
+        tokens,
+    },
     input_focus::tab_navigation::{TabGroup, TabNavigationPlugin},
     platform::collections::HashSet,
     prelude::*,
     reflect::{DynamicEnum, DynamicStruct, DynamicTuple, DynamicTupleStruct, DynamicVariant},
-    ui_widgets::{ScrollbarPlugin, observe},
+    ui_widgets::{CheckboxPlugin, ScrollbarPlugin, observe},
 };
 use bevy_file_dialog::FileDialogPlugin;
 use bevy_ui_text_input::TextInputPlugin;
@@ -42,12 +48,15 @@ pub struct ComponentEditorPlugin;
 impl Plugin for ComponentEditorPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<Text2d>();
+        app.insert_resource(UiTheme(create_dark_theme()));
         //TODO - it feels really weird to be initializing the text input plugin here -
         // but it's also not clear which sub module should own it.
         app.add_plugins((
             TextInputPlugin,
             TabNavigationPlugin,
             ScrollbarPlugin,
+            CheckboxPlugin,
+            FeathersPlugin,
             FileDialogPlugin::default(),
         ));
         app.add_plugins((

@@ -28,6 +28,7 @@ dev = [
     # Improve error messages coming from Bevy
     "bevy/track_location",
     "bevy/experimental_bevy_ui_widgets",
+    "bevy/experimental_bevy_feathers",
 ]
 dev_native = [
     "dev",
