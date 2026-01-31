@@ -15,7 +15,7 @@ use bevy::{
     platform::collections::HashSet,
     prelude::*,
     reflect::{DynamicEnum, DynamicStruct, DynamicTuple, DynamicTupleStruct, DynamicVariant},
-    ui_widgets::{CheckboxPlugin, ScrollbarPlugin, observe},
+    ui_widgets::{CheckboxPlugin, RadioGroupPlugin, ScrollbarPlugin, observe},
 };
 use bevy_file_dialog::FileDialogPlugin;
 use bevy_ui_text_input::TextInputPlugin;
@@ -56,6 +56,7 @@ impl Plugin for ComponentEditorPlugin {
             TabNavigationPlugin,
             ScrollbarPlugin,
             CheckboxPlugin,
+            RadioGroupPlugin,
             FeathersPlugin,
             FileDialogPlugin::default(),
         ));
@@ -65,6 +66,7 @@ impl Plugin for ComponentEditorPlugin {
             editor_override_traits::plugin,
             widgets::plugin,
             ui_context_core::plugin,
+            theme::plugin,
         ));
         app.init_state::<LoadingStatus>();
         app.init_resource::<AppTypeRegistry>();
@@ -175,6 +177,7 @@ pub fn spawn_editor(
                             flex_direction: FlexDirection::Column,
                             ..default()
                         },
+                        ThemeBackgroundColor(tokens::WINDOW_BG),
                         children![
                             add_entity_button(),
                             (

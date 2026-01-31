@@ -15,7 +15,11 @@ pub mod editor_assets;
 pub mod sprite;
 pub(super) fn plugin(app: &mut App) {
     app.init_resource::<SerializationProxies>();
-    app.add_plugins((asset_tracking::plugin, sprite::plugin));
+    app.add_plugins((
+        asset_tracking::plugin,
+        sprite::plugin,
+        editor_assets::plugin,
+    ));
 }
 
 pub trait AssetServerSaveExtension {

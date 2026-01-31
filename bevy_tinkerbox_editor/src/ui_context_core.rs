@@ -2,13 +2,18 @@ use std::any::TypeId;
 
 use ::bevy::prelude::*;
 use bevy::{
-    ecs::{reflect::ReflectCommandExt, world::DeferredWorld},
+    ecs::{reflect::ReflectCommandExt, relationship::RelatedSpawner, world::DeferredWorld},
+    feathers::{
+        controls::radio,
+        theme::{ThemeBorderColor, ThemedText},
+    },
     platform::collections::HashSet,
     reflect::{
         DynamicEnum, Enum, EnumInfo, ParsedPath, ReflectKind, TypeInfo, TypeRegistration,
-        VariantInfo, VariantType, serde::TypedReflectSerializer,
+        VariantType, serde::TypedReflectSerializer,
     },
-    ui_widgets::observe,
+    ui::Checked,
+    ui_widgets::{RadioButton, RadioGroup, ValueChange, observe},
 };
 
 use crate::{
@@ -17,7 +22,9 @@ use crate::{
     editor_override_traits::{
         ReflectEditorFieldUI, ReflectEditorHeaderUI, ReflectEditorPerFieldUI,
     },
-    instantiate_or_die, view_only_component,
+    instantiate_or_die,
+    theme::local_tokens,
+    view_only_component,
     widgets::{
         component_browser::ComponentSelection,
         field_input::{input_field_error, value_input_field},
@@ -219,7 +226,7 @@ pub(crate) fn component_ui_initializer(
                 margin: UiRect::vertical(px(3.)),
                 ..default()
             },
-            BorderColor::all(Srgba::BLACK),
+            ThemeBorderColor(local_tokens::PANE_BORDER),
             CloseRoot,
             ComponentIdentifer(source.component_type_registration.clone()),
         ))
@@ -530,18 +537,13 @@ impl<'a, 'b, 'w> ComponentUiContext<'a, 'b, 'w> {
                     component_type_id: self.component_type_registration.type_id(),
                     owning_entity: self.world_target.clone(),
                 };
-
                 let radio_group_container = commands
-                    .spawn((
-                        Name::new(type_name),
-                        //Ok look I know this is unsafe but seriously if you have more than u16::MAX_SIZE
-                        // variants in your enum I think you need to reconsider some shit.
-                        radio_group_container(num_variants.try_into().unwrap()),
-                        enum_metadata.clone(),
-                        cap.clone(),
-                        BorderColor::all(Srgba::GREEN),
-                        observe(enum_radio_observer),
-                        observe(enum_subelement_observer),
+                    .spawn(radio_button_group(
+                        num_variants.try_into().unwrap(),
+                        enum_info,
+                        &cap,
+                        &enum_metadata,
+                        enum_variant_index,
                     ))
                     .id();
 
@@ -550,14 +552,6 @@ impl<'a, 'b, 'w> ComponentUiContext<'a, 'b, 'w> {
                     .add_child(radio_group_container)
                     .add_child(structured_variant_layout_container);
 
-                let mut idx: usize = 0;
-                for variant in enum_info.iter() {
-                    commands
-                        .entity(radio_group_container)
-                        .with_child(radio_group_button(enum_variant_index, idx, variant));
-
-                    idx = idx + 1;
-                }
                 handle_enum_variant(
                     &self,
                     enum_metadata,
@@ -652,79 +646,70 @@ impl<'a, 'b, 'w> ComponentUiContext<'a, 'b, 'w> {
     }
 }
 
-fn radio_group_container(num_variants: u16) -> impl Bundle {
-    Node {
-        display: Display::Grid,
-        justify_self: JustifySelf::Center,
-        grid_template_columns: vec![RepeatedGridTrack::fr(num_variants.min(4), 0.5)],
-
-        column_gap: px(0.),
-        min_width: Val::Percent(10.),
-        max_width: Val::Percent(100.),
-        border: UiRect::all(px(2.)),
-        margin: UiRect::all(px(1.)),
-        ..default()
-    }
-}
-
-fn radio_group_button(
-    selected_index: usize,
-    current_index: usize,
-    variant_info: &VariantInfo,
+fn radio_button_group(
+    num_variants: u16,
+    enum_info: &EnumInfo,
+    cap: &FieldAccessPath,
+    enum_metadata: &EnumMetadata,
+    current_idx: usize,
 ) -> impl Bundle {
+    let info = enum_info.clone();
     (
         Node {
-            border: UiRect::all(px(1.)),
-            margin: UiRect::all(px(0.)),
-            padding: UiRect::vertical(px(1.)),
             display: Display::Grid,
-            grid_column: GridPlacement::auto(),
-            min_width: percent(10.),
-            width: percent(100.),
-            justify_content: JustifyContent::Center,
             justify_self: JustifySelf::Center,
+            grid_template_columns: vec![RepeatedGridTrack::fr(num_variants.min(4), 0.5)],
+
+            column_gap: px(0.),
+            min_width: Val::Percent(10.),
+            max_width: Val::Percent(100.),
+            border: UiRect::all(px(2.)),
+            margin: UiRect::all(px(1.)),
             ..default()
         },
-        (if selected_index == current_index {
-            BackgroundColor(Color::from(Srgba::BLUE))
-        } else {
-            BackgroundColor(Color::NONE)
-        }),
-        SelectionIndex(current_index),
-        BorderColor::all(Srgba::RED),
-        observe(trigger_radio_selection),
-        children![(Text::new(variant_info.name()), TextFont::from_font_size(8.),)],
+        RadioGroup,
+        cap.clone(),
+        enum_metadata.clone(),
+        observe(
+            |value_change: On<ValueChange<Entity>>,
+             kids: Query<&Children>,
+             q_radio: Query<Entity, With<RadioButton>>,
+             mut commands: Commands| {
+                for radio in q_radio.iter_many(kids.get(value_change.event_target()).unwrap()) {
+                    if radio == value_change.value {
+                        commands.entity(radio).insert(Checked);
+                    } else {
+                        commands.entity(radio).remove::<Checked>();
+                    }
+                }
+            },
+        ),
+        observe(enum_radio_observer),
+        observe(enum_subelement_observer),
+        Children::spawn(SpawnWith(move |parent: &mut RelatedSpawner<ChildOf>| {
+            info.iter().enumerate().for_each(|(i, variant_info)| {
+                if i == current_idx {
+                    parent.spawn((
+                        radio(Checked, Spawn((Text::new(variant_info.name()), ThemedText))),
+                        SelectionIndex(i),
+                    ));
+                } else {
+                    parent.spawn((
+                        radio((), Spawn((Text::new(variant_info.name()), ThemedText))),
+                        SelectionIndex(i),
+                    ));
+                }
+            });
+        })),
     )
 }
 
-//TODO - We should find a nicer way to handle styling internally to this radio selection shit.
-// Probably take a look at feathers etc.
-fn trigger_radio_selection(
-    source: On<Pointer<Click>>,
-    mut q: Query<(&mut BackgroundColor, &ChildOf), With<Node>>,
-    children: Query<&Children>,
-    mut commands: Commands,
-) {
-    if let Ok((mut bgc, dad)) = q.get_mut(source.event_target()) {
-        *bgc = BackgroundColor::from(Srgba::BLUE);
-        for bro in children.get(dad.0).unwrap() {
-            if *bro != source.event_target()
-                && let Ok((mut no, _)) = q.get_mut(*bro)
-            {
-                *no = BackgroundColor::from(Color::NONE);
-            }
-        }
-    }
-    commands.trigger(RadioGroupSelection {
-        entity: source.event_target(),
-    })
-}
 //Here we try our best to handle presentation and world mutation separately.
 // This lets us delegate the somewhat nasty and convoluted dynamic ref mutation to one spot,
 // but also let's us re-use as much of this as possible and provide kind of a nice model for
 // how the event contract is supposed to work.
 fn enum_radio_observer(
-    event: On<RadioGroupSelection>,
+    event: On<ValueChange<Entity>>,
     appreg: Res<AppTypeRegistry>,
     q: Query<(&EnumMetadata, &FieldAccessPath), Without<SelectionIndex>>,
     q2: Query<&SelectionIndex>,
@@ -737,7 +722,7 @@ fn enum_radio_observer(
             return;
         }
     };
-    let SelectionIndex(s_index) = match q2.get(event.original_event_target()) {
+    let SelectionIndex(s_index) = match q2.get(event.value) {
         Ok(f) => f,
         Err(e) => {
             info!("{:?}", e);

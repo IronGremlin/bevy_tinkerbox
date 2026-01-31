@@ -1,4 +1,5 @@
 use bevy::ecs::world::DeferredWorld;
+use bevy::feathers::theme::{ThemeBackgroundColor, ThemeToken};
 use bevy::prelude::*;
 use bevy::ui_widgets::observe;
 
@@ -8,7 +9,7 @@ use bevy::ecs::relationship::RelatedSpawner;
 
 use bevy::ecs::spawn::SpawnWith;
 
-use crate::theme::colors;
+use crate::theme::{self, local_tokens};
 use crate::widgets::general::{
     HoverBackground, centered, filter_with_prompt, hide_filtered_components, scroll_area_demo,
     text_row,
@@ -31,7 +32,7 @@ pub(crate) fn component_browser_widget(
             border_radius: BorderRadius::all(px(3)),
             ..default()
         },
-        BackgroundColor(colors::gry_nut().into()),
+        ThemeBackgroundColor(local_tokens::PANE_BG),
         Children::spawn((
             Spawn(centered((
                 Text::new("Add Components"),
@@ -69,14 +70,19 @@ pub(crate) fn spawn_component_entries(
                 continue;
             }
             // Indicate if we can actually construct a dynamic component to edit:
-            let (resting_color, warning): (Color, &'static str) =
+            let (resting_color, highlight_color, warning): (ThemeToken, ThemeToken, &'static str) =
                 if entry.data::<ReflectDefault>().is_none() {
                     (
-                        Srgba::new(0.2, 0.15, 0.15, 1.0).into(),
+                        theme::local_tokens::WARNING_BG,
+                        theme::local_tokens::WARNING_PRIMARY,
                         "no ReflectDefault impl",
                     )
                 } else {
-                    (colors::gry_nut().into(), "")
+                    (
+                        theme::local_tokens::ITEM_BG,
+                        theme::local_tokens::ITEM_ACTIVE,
+                        "",
+                    )
                 };
             let name = format!(
                 "{} | {}",
@@ -85,7 +91,7 @@ pub(crate) fn spawn_component_entries(
             );
             let h_background = HoverBackground {
                 out: resting_color,
-                over: resting_color.lighter(0.025),
+                over: highlight_color,
             };
 
             parent.spawn(component_entry(
@@ -115,7 +121,7 @@ pub(crate) fn component_entry(
             ui_anchor: component_ui_anchor,
         },
         Outline::new(Val::Px(2.), Val::ZERO, Color::NONE),
-        BackgroundColor(h_background.out),
+        ThemeBackgroundColor(h_background.out.clone()),
         h_background,
         observe(component_entry_on_click),
         children![

@@ -1,7 +1,11 @@
-use bevy::{platform::collections::HashSet, prelude::*, ui_widgets::observe};
+use bevy::{
+    feathers::theme::ThemeBackgroundColor, platform::collections::HashSet, prelude::*,
+    ui_widgets::observe,
+};
 
 use crate::{
     EntityUiRoot, ImageNodeSansHandle,
+    theme::local_tokens,
     ui_context_core::SelectedEntityUiRoot,
     widgets::{
         component_browser::{
@@ -18,6 +22,7 @@ pub(crate) fn add_entity_button() -> impl Bundle {
             column_gap: px(16.),
             ..default()
         },
+        ThemeBackgroundColor(local_tokens::PANE_BG),
         observe(add_entity_on_click),
         children![
             Text::new("Add Entity"),
@@ -40,6 +45,7 @@ pub fn make_new_entity_ui(entity: Entity) -> impl Bundle {
             display: Display::Grid,
             ..default()
         },
+        ThemeBackgroundColor(local_tokens::PANE_BG),
         EntityUiRoot {
             component_holder: entity,
             desired_component_set: HashSet::new(),
