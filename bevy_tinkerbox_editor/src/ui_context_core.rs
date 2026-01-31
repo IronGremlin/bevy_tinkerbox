@@ -17,7 +17,7 @@ use bevy::{
 };
 
 use crate::{
-    ComponentUiFor, DynamicComponentUiUpdateEvent, ImageNodeSansHandle,
+    ComponentUiFor, ImageNodeSansHandle, UpdateComponentFieldValue,
     WorldRequiredComponentExtension,
     editor_override_traits::{
         ReflectEditorFieldUI, ReflectEditorHeaderUI, ReflectEditorPerFieldUI,
@@ -200,7 +200,7 @@ pub(crate) struct UiRequestedFor {
 }
 
 #[derive(EntityEvent)]
-pub(crate) struct FieldUiRequestedFor {
+pub(crate) struct RefreshInputFields {
     #[event_target]
     pub component_ui_root: Entity,
 }
@@ -402,7 +402,7 @@ impl<'a, 'b, 'w> ComponentUiContext<'a, 'b, 'w> {
                         component_type_id: self.component_type_registration.type_id(),
                         owning_entity: self.world_target,
                     });
-                    commands.trigger(FieldUiRequestedFor {
+                    commands.trigger(RefreshInputFields {
                         component_ui_root: bucket,
                     });
                     return;
@@ -617,7 +617,7 @@ impl<'a, 'b, 'w> ComponentUiContext<'a, 'b, 'w> {
                     Text::new(o_info.type_path_table().short_path()),
                     TextFont::from_font_size(10.0),
                 ));
-                commands.trigger(FieldUiRequestedFor {
+                commands.trigger(RefreshInputFields {
                     component_ui_root: step_context.local_ui_focus,
                 });
             }
@@ -750,7 +750,7 @@ fn enum_radio_observer(
         let _ = instantiate_or_die(&*appreg, newdata.info.type_id(), Some(*s_index))
             .map_err(String::from)
             .and_then(|n| {
-                let triggered_event = DynamicComponentUiUpdateEvent {
+                let triggered_event = UpdateComponentFieldValue {
                     ui_entity: event.event_target(),
                     new_value: n,
                     component_ui_field_for: cap.clone(),
@@ -761,7 +761,7 @@ fn enum_radio_observer(
     }
 }
 fn enum_subelement_observer(
-    source: On<FieldUiRequestedFor>,
+    source: On<RefreshInputFields>,
     mut commands: Commands,
     world: DeferredWorld,
 ) {

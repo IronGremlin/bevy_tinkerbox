@@ -1,4 +1,4 @@
-use std::any::TypeId;
+use std::{any::TypeId, collections::VecDeque};
 
 use bevy::{
     ecs::{
@@ -23,12 +23,12 @@ use bevy_ui_text_input::TextInputPlugin;
 use crate::{
     asset_extensions::asset_tracking::ResourceHandles,
     ui_context_core::{
-        ComponentIdentifer, EntityUiRoot, FieldAccessPath, FieldUiRequestedFor,
-        SelectedEntityUiRoot,
+        ComponentIdentifer, EntityUiRoot, FieldAccessPath, RefreshInputFields, SelectedEntityUiRoot,
     },
     widgets::{
         add_entity_button::add_entity_button,
         component_browser::ComponentBrowserWidgetRoot,
+        field_input::ValueInputInput,
         general::*,
         scene_actions::{
             load_scene_dialog, load_scene_with_path, save_scene_dialog, save_scene_with_path,
@@ -72,6 +72,7 @@ impl Plugin for ComponentEditorPlugin {
         app.init_resource::<AppTypeRegistry>();
         app.add_systems(Startup, editor_initialization);
         app.add_observer(on_update_event_dynamic);
+        app.add_observer(cascade_field_updates);
 
         app.configure_sets(OnEnter(LoadingStatus::Complete), EditorConstructionSet);
         app.add_systems(
@@ -354,13 +355,13 @@ impl WorldRequiredComponentExtension for World {
 }
 
 #[derive(EntityEvent)]
-pub struct DynamicComponentUiUpdateEvent {
+pub struct UpdateComponentFieldValue {
     #[event_target]
     ui_entity: Entity,
     new_value: Box<dyn PartialReflect>,
     component_ui_field_for: FieldAccessPath,
 }
-impl DynamicComponentUiUpdateEvent {
+impl UpdateComponentFieldValue {
     pub fn validate(&self) -> Result<(), String> {
         self.new_value
             .get_represented_type_info()
@@ -386,7 +387,7 @@ impl DynamicComponentUiUpdateEvent {
     }
 }
 fn on_update_event_dynamic(
-    source: On<DynamicComponentUiUpdateEvent>,
+    source: On<UpdateComponentFieldValue>,
     world: DeferredWorld,
     mut commands: Commands,
 ) {
@@ -422,7 +423,7 @@ fn on_update_event_dynamic(
 
     commands.entity(world_entity).insert_reflect(shadow);
 
-    commands.trigger(FieldUiRequestedFor {
+    commands.trigger(RefreshInputFields {
         component_ui_root: source.ui_entity,
     });
 }
@@ -672,4 +673,61 @@ fn image_node_sans_handle_added(mut world: DeferredWorld, context: HookContext) 
     commands
         .entity(context.entity)
         .remove::<ImageNodeSansHandle>();
+}
+
+// Event traversal would force us to visit every entity in the middle -
+// This still blasts a bunch of updates we don't need but at least it stays scoped
+// to the component.
+fn cascade_field_updates(
+    src: On<RefreshInputFields>,
+    world: DeferredWorld,
+    mut commands: Commands,
+) {
+    let mut children = world
+        .try_query::<&Children>()
+        .expect("Query instantiation failed");
+    let mut field_inputs = world
+        .try_query::<(&ValueInputInput, &FieldAccessPath)>()
+        .expect("Query instantiation failed");
+
+    let mut queue = VecDeque::from([src.event_target()]);
+
+    while !queue.is_empty() {
+        let cursor = queue.pop_front().unwrap();
+        if let Ok((input, fap)) = field_inputs.get(&world, cursor) {
+            let path = fap.path.clone();
+
+            let component_ref = match world.get_reflect(fap.owning_entity, fap.component_type_id) {
+                Ok(f) => f,
+                Err(e) => {
+                    info!("{:?}", e);
+                    return;
+                }
+            };
+            let mut shadow = component_ref.reflect_clone().unwrap();
+            let old_val = match path.reflect_element_mut(shadow.as_partial_reflect_mut()) {
+                Ok(f) => f,
+                Err(e) => {
+                    info!("{:?}", e);
+                    return;
+                }
+            };
+            if !input.val.reflect_partial_eq(old_val).unwrap_or(false) {
+                let shadow_val = old_val.reflect_clone().unwrap();
+                commands
+                    .entity(cursor)
+                    .entry::<ValueInputInput>()
+                    .and_modify(move |mut input_mut| {
+                        input_mut.val = shadow_val;
+                    });
+            }
+        };
+
+        let Ok(kids) = children.get(&world, cursor).map(|x| x.iter()) else {
+            continue;
+        };
+        for kid in kids {
+            queue.push_back(kid);
+        }
+    }
 }

@@ -1,5 +1,5 @@
 use crate::{
-    DynamicComponentUiUpdateEvent, FieldAccessPath, FieldUiRequestedFor, ImageNodeSansHandle,
+    FieldAccessPath, ImageNodeSansHandle, RefreshInputFields, UpdateComponentFieldValue,
     editor_override_traits::{
         EditorFieldUI, ReflectEditorFieldUI, ReflectEditorHeaderUI, ReflectEditorPerFieldUI,
     },
@@ -51,7 +51,7 @@ impl EditorFieldUI for bool {
                     .unwrap();
                 let state = my_cap.path.element::<bool>(component).unwrap();
 
-                commands.trigger(DynamicComponentUiUpdateEvent::new(
+                commands.trigger(UpdateComponentFieldValue::new(
                     source.event_target(),
                     Box::new(!state.clone()),
                     my_cap.clone(),
@@ -60,7 +60,7 @@ impl EditorFieldUI for bool {
         );
 
         let world_watcher = observe(
-            |source: On<FieldUiRequestedFor>, world: DeferredWorld, mut commands: Commands| {
+            |source: On<RefreshInputFields>, world: DeferredWorld, mut commands: Commands| {
                 let my_cap = world
                     .entity(source.component_ui_root)
                     .get_components::<&FieldAccessPath>()
@@ -141,7 +141,7 @@ impl EditorFieldUI for Handle<Image> {
                                 })
                                 .unwrap();
                             let handle: Handle<Image> = assets.load(path.to_owned());
-                            s_commands.trigger(DynamicComponentUiUpdateEvent::new(
+                            s_commands.trigger(UpdateComponentFieldValue::new(
                                 event.event_target(),
                                 Box::new(handle),
                                 my_cap.clone(),
@@ -152,7 +152,7 @@ impl EditorFieldUI for Handle<Image> {
                 },
             ),
             observe(
-                |src: On<FieldUiRequestedFor>, world: DeferredWorld, mut s_commands: Commands| {
+                |src: On<RefreshInputFields>, world: DeferredWorld, mut s_commands: Commands| {
                     let my_cap = world
                         .entity(src.component_ui_root)
                         .get_components::<&FieldAccessPath>()

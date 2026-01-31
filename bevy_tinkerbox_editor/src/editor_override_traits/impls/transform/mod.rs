@@ -3,12 +3,15 @@ use bevy::{prelude::*, ui_widgets::observe};
 use crate::{
     ComponentUiFor, ComponentUisFor, EntityUiRoot, ImageNodeSansHandle,
     editor_override_traits::{EditorHeaderUI, EditorPerFieldUI},
-    ui_context_core::UiCtxt,
+    ui_context_core::{RefreshInputFields, UiCtxt},
     widgets::general::{FormControl, FormControlSubject, FormElement, FormElementMarker},
 };
 pub(super) fn plugin(app: &mut App) {
     app.add_observer(transform_editor_widget_spawner);
-    app.add_systems(Update, transform_editor_presentation);
+    app.add_systems(
+        Update,
+        (transform_editor_presentation, widget_change_monitor),
+    );
 }
 
 impl EditorPerFieldUI for Transform {
@@ -400,4 +403,23 @@ fn transform_editor_widget_spawner(
     commands
         .entity(event.event_target())
         .add_one_related::<ComponentUiFor>(widget);
+}
+
+fn widget_change_monitor(
+    changed_widgets: Query<&ComponentUiFor, (With<TransformWidget>, Changed<Transform>)>,
+    uis_for: Query<&ComponentUisFor>,
+    mut commands: Commands,
+) {
+    for widget in changed_widgets.iter() {
+        for ui_for in uis_for
+            .get(widget.target)
+            .expect("Assymetrical relationship")
+            .0
+            .iter()
+        {
+            commands.trigger(RefreshInputFields {
+                component_ui_root: *ui_for,
+            });
+        }
+    }
 }
