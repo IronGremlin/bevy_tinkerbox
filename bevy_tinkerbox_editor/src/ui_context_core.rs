@@ -10,7 +10,7 @@ use bevy::{
     platform::collections::HashSet,
     reflect::{
         DynamicEnum, Enum, EnumInfo, ParsedPath, ReflectKind, TypeInfo, TypeRegistration,
-        VariantType, serde::TypedReflectSerializer,
+        VariantType,
     },
     ui::Checked,
     ui_widgets::{RadioButton, RadioGroup, ValueChange, observe},
@@ -27,9 +27,9 @@ use crate::{
     view_only_component,
     widgets::{
         component_browser::ComponentSelection,
-        field_input::{input_field_error, value_input_field},
+        field_input::{dynamic_value_input_field, input_field_error},
         general::{CloseEvent, CloseRoot},
-        scene_persistence::ComponentInstantiation,
+        scene_actions::ComponentInstantiation,
         view_only_component::RideAlongComponent,
     },
 };
@@ -597,12 +597,16 @@ impl<'a, 'b, 'w> ComponentUiContext<'a, 'b, 'w> {
                         cap.path
                             .reflect_element(&*self.the_component)
                             .map_err(|e| e.to_string())
-                            .and_then(|we| {
-                                let read_lock = self.reg.read();
-                                let serializer = TypedReflectSerializer::new(&*we, &*read_lock);
-                                ron::to_string(&serializer).map_err(|_| "".to_string())
+                            .map(|we| {
+                                let val = we.try_as_reflect().expect(
+                                    "Partial reflect should impl reflect why can this fail",
+                                );
+                                let boxed = val
+                                    .reflect_clone()
+                                    .expect("field input types must be clonable");
+                                dynamic_value_input_field(boxed)
                             })
-                            .map(|txt| value_input_field(txt, cap))
+                            .map(|x| (x, cap))
                     }) {
                     Ok(f) => commands.entity(row).with_child(f),
                     Err(t) => commands.entity(row).with_child(input_field_error(t)),
@@ -1037,11 +1041,6 @@ pub struct FieldAccessPath {
 pub struct SelectedEntityUiRoot;
 #[derive(Component)]
 pub struct ComponentIdentifer(pub TypeRegistration);
-#[derive(EntityEvent)]
-#[entity_event(propagate, auto_propagate)]
-pub struct RadioGroupSelection {
-    entity: Entity,
-}
 
 #[derive(Component, Clone)]
 pub struct EntityUiRoot {

@@ -4,7 +4,7 @@ pub mod add_entity_button;
 pub mod component_browser;
 pub mod field_input;
 pub mod general;
-pub mod scene_persistence;
+pub mod scene_actions;
 pub mod view_only_component;
 
 pub(super) fn plugin(app: &mut App) {
@@ -12,6 +12,6 @@ pub(super) fn plugin(app: &mut App) {
         component_browser::plugin,
         general::plugin,
         field_input::plugin,
-        scene_persistence::plugin,
+        scene_actions::plugin,
     ));
 }

@@ -30,7 +30,7 @@ use crate::{
         add_entity_button::add_entity_button,
         component_browser::ComponentBrowserWidgetRoot,
         general::*,
-        scene_persistence::{
+        scene_actions::{
             load_scene_dialog, load_scene_with_path, save_scene_dialog, save_scene_with_path,
         },
         view_only_component::{RideAlongComponent, view_only_component},

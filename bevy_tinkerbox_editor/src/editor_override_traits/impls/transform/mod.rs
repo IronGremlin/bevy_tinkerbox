@@ -283,6 +283,7 @@ fn transform_editor_widget_spawner(
     event: On<ConstructTransformWidgetFor>,
     mut commands: Commands,
     world_target: Query<&ComponentUisFor>,
+    global_transforms: Query<&GlobalTransform>,
     gidgets: Query<&TransformWidget>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -361,10 +362,15 @@ fn transform_editor_widget_spawner(
         }
     }
 
+    let starting_pos = global_transforms
+        .get(event.event_target())
+        .map(|x| x.translation())
+        .unwrap_or(Vec3::ZERO);
+
     let widget = commands
         .spawn((
             (
-                Transform::from_xyz(0., 0., 0.).with_scale(Vec3::splat(5.)),
+                Transform::from_translation(starting_pos).with_scale(Vec3::splat(5.)),
                 InheritedVisibility::VISIBLE,
                 TransformWidget,
             ),

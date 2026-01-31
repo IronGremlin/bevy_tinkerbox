@@ -13,7 +13,7 @@ use crate::{
     editor_override_traits::{EditorPerFieldUI, impls::sprite::texture_atlas_layout::GridArgs},
     ui_context_core::UiCtxt,
     widgets::{
-        field_input::{ValueInputInput, ValueInputOutput, better_value_input_field},
+        field_input::{ValueInputInput, ValueInputOutput, concrete_value_input_field},
         general::{
             FormControl, FormControlSubject, FormDataChanged, FormElement, FormElementMarker,
         },
@@ -615,14 +615,14 @@ fn texture_atlas_preview_ui_bundle(args: texture_atlas_layout::GridArgs) -> impl
             BackgroundColor(Srgba::hex("#46474d").unwrap_or(Srgba::WHITE).into()),
             children![(
                 match key {
-                    CellSizeX => better_value_input_field(gargs.cell_size.x),
-                    CellSizeY => better_value_input_field(gargs.cell_size.y),
-                    NumColumns => better_value_input_field(gargs.columns),
-                    NumRows => better_value_input_field(gargs.rows),
-                    OffsetX => better_value_input_field(gargs.offset.x),
-                    OffsetY => better_value_input_field(gargs.offset.y),
-                    PaddingX => better_value_input_field(gargs.padding.x),
-                    PaddingY => better_value_input_field(gargs.padding.y),
+                    CellSizeX => concrete_value_input_field(gargs.cell_size.x),
+                    CellSizeY => concrete_value_input_field(gargs.cell_size.y),
+                    NumColumns => concrete_value_input_field(gargs.columns),
+                    NumRows => concrete_value_input_field(gargs.rows),
+                    OffsetX => concrete_value_input_field(gargs.offset.x),
+                    OffsetY => concrete_value_input_field(gargs.offset.y),
+                    PaddingX => concrete_value_input_field(gargs.padding.x),
+                    PaddingY => concrete_value_input_field(gargs.padding.y),
                 },
                 key,
                 FormElementMarker

@@ -9,16 +9,16 @@
   - [X] Move scene loading actions to their own widget module
   - [ ] Find something to do with `ImageNodeSansHandle`
 - [ ] Start refactoring to make use of feathers & theming
-  - [ ] Move that god awful enum handling code to use somekinda drop down
+  - [?] Move that god awful enum handling code to use somekinda drop down
   - [ ] Put a file / etc set of dropdown menus up top
   - [ ] Investigate documentation tooltips?
   - [ ] Use that delicious new color picker ui to pick some colors
 - [ ] Fixup your silly transform widget
-  - [ ] Make it track actual transform state on load
+  - [X] Make it track actual transform state on load
   - [ ] Make it populated actual transform state back to ui on edit
   - [ ] Make the buttons in the UI make sense - these should probably be lock buttons not toggle.
   - [ ] Refactor the related code to be not hot garbage also
-- [ ] Update your text edit stuff to use the better API you introduced with TextureAtlas UI
+- [X] Update your text edit stuff to use the better API you introduced with TextureAtlas UI
 - [ ] Make a UI for CHILDREN, scaaaarrrry
   - [ ] Add remove entity button first
   - [ ] V1 is add/remove entites from child, we don't care about order
