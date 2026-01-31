@@ -1,2 +1,3 @@
 /target
 Cargo.lock
+sample_project_bin/assets/scenes/test*
