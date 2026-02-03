@@ -9,8 +9,8 @@ use bevy::{
     },
     platform::collections::HashSet,
     reflect::{
-        DynamicEnum, Enum, EnumInfo, ParsedPath, ReflectKind, TypeInfo, TypeRegistration,
-        VariantType,
+        DynamicEnum, Enum, EnumInfo, OpaqueInfo, ParsedPath, ReflectKind, TypeInfo,
+        TypeRegistration, VariantType,
     },
     ui::Checked,
     ui_widgets::{RadioButton, RadioGroup, ValueChange, observe},
@@ -310,25 +310,11 @@ impl<'a, 'b, 'w> UiCtxt<'a, 'b, 'w> {
     pub fn world_target(&self) -> Entity {
         self.root_context.world_target
     }
-    pub fn component_instance(&self) -> &dyn PartialReflect {
-        self.root_context.the_component
-    }
     pub fn ui_anchor(&self) -> Entity {
         self.step_context.local_ui_focus
     }
     pub fn path(&self) -> &str {
         self.step_context.local_path.as_str()
-    }
-    pub fn type_name(&self) -> &str {
-        self.step_context.local_name.as_str()
-    }
-    pub fn field_access_path(&self) -> FieldAccessPath {
-        FieldAccessPath {
-            path: ParsedPath::parse(self.step_context.local_path.as_str()).unwrap(),
-            value_type_id: self.step_context.local_type_info.type_id(),
-            component_type_id: self.root_context.component_type_registration.type_id(),
-            owning_entity: self.root_context.world_target,
-        }
     }
     pub fn next(&self, commands: &mut Commands) {
         self.root_context.step(self.step_context.clone(), commands);
@@ -350,6 +336,11 @@ pub struct ComponentUiStepContext<'a> {
     pub local_path: String,
     pub local_name: String,
 }
+impl<'a> ComponentUiStepContext<'a> {
+    fn local_type_name(&self) -> &'static str {
+        self.local_type_info.type_path_table().short_path()
+    }
+}
 #[derive(Clone)]
 pub struct ComponentUiContext<'a, 'b, 'w> {
     pub world_target: Entity,
@@ -359,7 +350,6 @@ pub struct ComponentUiContext<'a, 'b, 'w> {
 }
 impl<'a, 'b, 'w> ComponentUiContext<'a, 'b, 'w> {
     pub fn step(&self, step_context: ComponentUiStepContext, commands: &mut Commands) {
-        let type_name = step_context.local_type_info.type_path_table().short_path();
         let registry = self.reg.read();
         let registration = registry
             .get(step_context.local_type_info.type_id())
@@ -413,213 +403,21 @@ impl<'a, 'b, 'w> ComponentUiContext<'a, 'b, 'w> {
 
         match step_context.local_type_info {
             TypeInfo::Struct(struct_info) => {
-                if step_context.local_name != "" {
-                    commands
-                        .entity(step_context.local_ui_focus)
-                        .with_child(field_name_with_type(step_context.local_name, type_name));
-                }
-
-                let field_layout = commands.spawn(field_layout()).id();
-
-                commands
-                    .entity(step_context.local_ui_focus)
-                    .add_child(field_layout);
-
-                for &field_name in struct_info.field_names() {
-                    let field_type_info = struct_info
-                        .field(field_name)
-                        .and_then(|t| t.type_info())
-                        .unwrap();
-
-                    let property_path = if step_context.local_path != "" {
-                        format!("{}.{field_name}", step_context.local_path)
-                    } else {
-                        field_name.to_owned()
-                    };
-
-                    let next_step = ComponentUiStepContext {
-                        local_ui_focus: field_layout,
-                        local_type_info: field_type_info,
-                        local_path: property_path,
-                        local_name: field_name.to_string(),
-                    };
-                    if maybe_struct_level_trait.is_some() {
-                        let my_dyn = maybe_struct_level_trait
-                            .unwrap()
-                            .get(self.the_component.try_as_reflect().unwrap())
-                            .unwrap();
-                        my_dyn.construct_per_field_ui(&UiCtxt::new(&self, &next_step), commands);
-                    } else {
-                        self.step(next_step.clone(), commands);
-                    }
-                }
-            }
-            TypeInfo::TupleStruct(ts_info) => {
-                if step_context.local_name != "" {
-                    commands
-                        .entity(step_context.local_ui_focus)
-                        .with_child(field_name_with_type(step_context.local_name, type_name));
-                }
-
-                let field_layout = commands.spawn(field_layout()).id();
-
-                commands
-                    .entity(step_context.local_ui_focus)
-                    .add_child(field_layout);
-
-                for unnamed in ts_info.iter() {
-                    let field_name = unnamed.index().to_string();
-                    let field_type_info = ts_info
-                        .field_at(unnamed.index())
-                        .and_then(|t| t.type_info())
-                        .unwrap();
-
-                    let property_path = if step_context.local_path != "SelectedEntityUiRoot" {
-                        format!("{}.{field_name}", step_context.local_path)
-                    } else {
-                        field_name.to_owned()
-                    };
-                    let next_step = ComponentUiStepContext {
-                        local_ui_focus: field_layout,
-                        local_type_info: field_type_info,
-                        local_path: property_path,
-                        local_name: field_name,
-                    };
-                    if maybe_struct_level_trait.is_some() {
-                        let my_dyn = maybe_struct_level_trait
-                            .unwrap()
-                            .get(self.the_component.try_as_reflect().unwrap())
-                            .unwrap();
-                        my_dyn.construct_per_field_ui(&UiCtxt::new(&self, &next_step), commands);
-                    } else {
-                        self.step(next_step.clone(), commands);
-                    }
-                }
-            }
-            TypeInfo::Enum(enum_info) => {
-                let num_variants: usize = enum_info.iter().len();
-
-                commands
-                    .entity(step_context.local_ui_focus)
-                    .with_child(field_name_with_type(step_context.local_name, type_name));
-
-                //TODO - don't barf here.
-                let path = ParsedPath::parse(step_context.local_path.as_str()).unwrap();
-
-                //This feels kind of goofy - it feels like there should be some way to cast this as a dynamic enum.
-
-                let enum_variant_index = path
-                    .reflect_element(self.the_component)
-                    .map_err(|_| 0)
-                    .and_then(|we| {
-                        let mut dummy = DynamicEnum::default();
-                        dummy.apply(&*we);
-                        Ok(dummy.variant_index())
-                    })
-                    .map_err(|_| 0)
-                    .unwrap_or(0);
-
-                let structured_variant_layout_container = commands
-                    .spawn(Node {
-                        display: Display::None,
-                        ..default()
-                    })
-                    .id();
-                let enum_metadata = EnumMetadata::new(
-                    enum_info.clone(),
-                    enum_variant_index,
-                    step_context.local_path.to_owned(),
-                    structured_variant_layout_container,
-                );
-                let cap = FieldAccessPath {
-                    path,
-                    value_type_id: enum_info.type_id(),
-                    component_type_id: self.component_type_registration.type_id(),
-                    owning_entity: self.world_target.clone(),
-                };
-                let radio_group_container = commands
-                    .spawn(radio_button_group(
-                        num_variants.try_into().unwrap(),
-                        enum_info,
-                        &cap,
-                        &enum_metadata,
-                        enum_variant_index,
-                    ))
-                    .id();
-
-                commands
-                    .entity(step_context.local_ui_focus)
-                    .add_child(radio_group_container)
-                    .add_child(structured_variant_layout_container);
-
-                handle_enum_variant(
-                    &self,
-                    enum_metadata,
-                    enum_variant_index,
-                    structured_variant_layout_container,
+                self.handle_struct(
+                    step_context,
+                    struct_info,
+                    maybe_struct_level_trait,
                     commands,
                 );
             }
+            TypeInfo::TupleStruct(ts_info) => {
+                self.handle_tuple_struct(step_context, ts_info, maybe_struct_level_trait, commands);
+            }
+            TypeInfo::Enum(enum_info) => {
+                self.handle_enum(step_context, enum_info, commands);
+            }
             TypeInfo::Opaque(o_info) => {
-                let row = commands
-                    .spawn((
-                        Node {
-                            flex_direction: FlexDirection::Row,
-                            padding: UiRect::all(px(1.)),
-                            column_gap: px(2.),
-                            ..default()
-                        },
-                        children![(
-                            Name::new("Field Label"),
-                            Text::new(step_context.local_name),
-                            TextFont::from_font_size(10.0),
-                        )],
-                    ))
-                    .id();
-                commands.entity(step_context.local_ui_focus).add_child(row);
-
-                //TODO - We should restructure this to be less spah-get
-
-                match field_is_parseable(&step_context.local_type_info.type_id(), &*self.reg)
-                    .and_then(|_| {
-                        ParsedPath::parse(step_context.local_path.as_str())
-                            .map_err(|e| e.to_string())
-                    })
-                    .and_then(|path| {
-                        Ok(FieldAccessPath {
-                            owning_entity: self.world_target.clone(),
-                            component_type_id: self.component_type_registration.type_id(),
-                            path: path,
-                            value_type_id: step_context.local_type_info.type_id(),
-                        })
-                    })
-                    .and_then(|cap| {
-                        cap.path
-                            .reflect_element(&*self.the_component)
-                            .map_err(|e| e.to_string())
-                            .map(|we| {
-                                let val = we.try_as_reflect().expect(
-                                    "Partial reflect should impl reflect why can this fail",
-                                );
-                                let boxed = val
-                                    .reflect_clone()
-                                    .expect("field input types must be clonable");
-                                dynamic_value_input_field(boxed)
-                            })
-                            .map(|x| (x, cap))
-                    }) {
-                    Ok(f) => commands.entity(row).with_child(f),
-                    Err(t) => commands.entity(row).with_child(input_field_error(t)),
-                };
-
-                commands.entity(row).with_child((
-                    Node { ..default() },
-                    Text::new(o_info.type_path_table().short_path()),
-                    TextFont::from_font_size(10.0),
-                ));
-                commands.trigger(RefreshInputFields {
-                    component_ui_root: step_context.local_ui_focus,
-                });
+                self.handle_opaque(step_context, o_info, commands);
             }
             //these two are esentially the same case
             TypeInfo::Set(_info) => {
@@ -647,6 +445,242 @@ impl<'a, 'b, 'w> ComponentUiContext<'a, 'b, 'w> {
                 info!("View entity [Wtf]: {:?}", step_context.local_ui_focus);
             }
         };
+    }
+
+    fn handle_struct(
+        &self,
+        step_context: ComponentUiStepContext,
+        struct_info: &bevy::reflect::StructInfo,
+        maybe_struct_level_trait: Option<&ReflectEditorPerFieldUI>,
+        commands: &mut Commands,
+    ) {
+        let type_name = step_context.local_type_name();
+        if step_context.local_name != "" {
+            commands
+                .entity(step_context.local_ui_focus)
+                .with_child(field_name_with_type(step_context.local_name, type_name));
+        }
+
+        let field_layout = commands.spawn(field_layout()).id();
+
+        commands
+            .entity(step_context.local_ui_focus)
+            .add_child(field_layout);
+
+        for &field_name in struct_info.field_names() {
+            let field_type_info = struct_info
+                .field(field_name)
+                .and_then(|t| t.type_info())
+                .unwrap();
+
+            let property_path = if step_context.local_path != "" {
+                format!("{}.{field_name}", step_context.local_path)
+            } else {
+                field_name.to_owned()
+            };
+
+            let next_step = ComponentUiStepContext {
+                local_ui_focus: field_layout,
+                local_type_info: field_type_info,
+                local_path: property_path,
+                local_name: field_name.to_string(),
+            };
+            if maybe_struct_level_trait.is_some() {
+                let my_dyn = maybe_struct_level_trait
+                    .unwrap()
+                    .get(self.the_component.try_as_reflect().unwrap())
+                    .unwrap();
+                my_dyn.construct_per_field_ui(&UiCtxt::new(&self, &next_step), commands);
+            } else {
+                self.step(next_step.clone(), commands);
+            }
+        }
+    }
+
+    fn handle_tuple_struct(
+        &self,
+        step_context: ComponentUiStepContext,
+        ts_info: &bevy::reflect::TupleStructInfo,
+        maybe_struct_level_trait: Option<&ReflectEditorPerFieldUI>,
+        commands: &mut Commands,
+    ) {
+        let type_name = step_context.local_type_name();
+        if step_context.local_name != "" {
+            commands
+                .entity(step_context.local_ui_focus)
+                .with_child(field_name_with_type(step_context.local_name, type_name));
+        }
+
+        let field_layout = commands.spawn(field_layout()).id();
+
+        commands
+            .entity(step_context.local_ui_focus)
+            .add_child(field_layout);
+
+        for unnamed in ts_info.iter() {
+            let field_name = unnamed.index().to_string();
+            let field_type_info = ts_info
+                .field_at(unnamed.index())
+                .and_then(|t| t.type_info())
+                .unwrap();
+
+            let property_path = if step_context.local_path != "SelectedEntityUiRoot" {
+                format!("{}.{field_name}", step_context.local_path)
+            } else {
+                field_name.to_owned()
+            };
+            let next_step = ComponentUiStepContext {
+                local_ui_focus: field_layout,
+                local_type_info: field_type_info,
+                local_path: property_path,
+                local_name: field_name,
+            };
+            if maybe_struct_level_trait.is_some() {
+                let my_dyn = maybe_struct_level_trait
+                    .unwrap()
+                    .get(self.the_component.try_as_reflect().unwrap())
+                    .unwrap();
+                my_dyn.construct_per_field_ui(&UiCtxt::new(&self, &next_step), commands);
+            } else {
+                self.step(next_step.clone(), commands);
+            }
+        }
+    }
+
+    fn handle_enum(
+        &self,
+        step_context: ComponentUiStepContext<'_>,
+        enum_info: &EnumInfo,
+        commands: &mut Commands,
+    ) {
+        let type_name = step_context.local_type_name();
+        let num_variants: usize = enum_info.iter().len();
+
+        commands
+            .entity(step_context.local_ui_focus)
+            .with_child(field_name_with_type(step_context.local_name, type_name));
+
+        //TODO - don't barf here.
+        let path = ParsedPath::parse(step_context.local_path.as_str()).unwrap();
+
+        //This feels kind of goofy - it feels like there should be some way to cast this as a dynamic enum.
+
+        let enum_variant_index = path
+            .reflect_element(self.the_component)
+            .map_err(|_| 0)
+            .and_then(|we| {
+                let mut dummy = DynamicEnum::default();
+                dummy.apply(&*we);
+                Ok(dummy.variant_index())
+            })
+            .map_err(|_| 0)
+            .unwrap_or(0);
+
+        let structured_variant_layout_container = commands
+            .spawn(Node {
+                display: Display::None,
+                ..default()
+            })
+            .id();
+        let enum_metadata = EnumMetadata::new(
+            enum_info.clone(),
+            enum_variant_index,
+            step_context.local_path.to_owned(),
+            structured_variant_layout_container,
+        );
+        let cap = FieldAccessPath {
+            path,
+            value_type_id: enum_info.type_id(),
+            component_type_id: self.component_type_registration.type_id(),
+            owning_entity: self.world_target.clone(),
+        };
+        let radio_group_container = commands
+            .spawn(radio_button_group(
+                num_variants.try_into().unwrap(),
+                enum_info,
+                &cap,
+                &enum_metadata,
+                enum_variant_index,
+            ))
+            .id();
+
+        commands
+            .entity(step_context.local_ui_focus)
+            .add_child(radio_group_container)
+            .add_child(structured_variant_layout_container);
+
+        handle_enum_variant(
+            &self,
+            enum_metadata,
+            enum_variant_index,
+            structured_variant_layout_container,
+            commands,
+        );
+    }
+    fn handle_opaque(
+        &self,
+        step_context: ComponentUiStepContext<'_>,
+        o_info: &OpaqueInfo,
+        commands: &mut Commands,
+    ) {
+        let row = commands
+            .spawn((
+                Node {
+                    flex_direction: FlexDirection::Row,
+                    padding: UiRect::all(px(1.)),
+                    column_gap: px(2.),
+                    ..default()
+                },
+                children![(
+                    Name::new("Field Label"),
+                    Text::new(step_context.local_name),
+                    TextFont::from_font_size(10.0),
+                )],
+            ))
+            .id();
+        commands.entity(step_context.local_ui_focus).add_child(row);
+
+        //TODO - We should restructure this to be less spah-get
+
+        match field_is_parseable(&step_context.local_type_info.type_id(), &*self.reg)
+            .and_then(|_| {
+                ParsedPath::parse(step_context.local_path.as_str()).map_err(|e| e.to_string())
+            })
+            .and_then(|path| {
+                Ok(FieldAccessPath {
+                    owning_entity: self.world_target.clone(),
+                    component_type_id: self.component_type_registration.type_id(),
+                    path: path,
+                    value_type_id: step_context.local_type_info.type_id(),
+                })
+            })
+            .and_then(|cap| {
+                cap.path
+                    .reflect_element(&*self.the_component)
+                    .map_err(|e| e.to_string())
+                    .map(|we| {
+                        let val = we
+                            .try_as_reflect()
+                            .expect("Partial reflect should impl reflect why can this fail");
+                        let boxed = val
+                            .reflect_clone()
+                            .expect("field input types must be clonable");
+                        dynamic_value_input_field(boxed)
+                    })
+                    .map(|x| (x, cap))
+            }) {
+            Ok(f) => commands.entity(row).with_child(f),
+            Err(t) => commands.entity(row).with_child(input_field_error(t)),
+        };
+
+        commands.entity(row).with_child((
+            Node { ..default() },
+            Text::new(o_info.type_path_table().short_path()),
+            TextFont::from_font_size(10.0),
+        ));
+        commands.trigger(RefreshInputFields {
+            component_ui_root: step_context.local_ui_focus,
+        });
     }
 }
 
