@@ -11,7 +11,7 @@ use crate::{
         component_browser::{
             ComponentBrowserOpenRequest, ComponentBrowserWidgetRoot, component_browser_widget,
         },
-        general::{as_bundle, scroll_area_demo},
+        general::{as_bundle, vertical_scroll_area},
     },
 };
 
@@ -40,7 +40,7 @@ pub(crate) fn add_entity_button() -> impl Bundle {
 }
 
 pub fn make_new_entity_ui(entity: Entity) -> impl Bundle {
-    scroll_area_demo(as_bundle((
+    vertical_scroll_area(as_bundle((
         Node {
             display: Display::Grid,
             ..default()

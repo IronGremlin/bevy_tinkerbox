@@ -11,8 +11,8 @@ use bevy::ecs::spawn::SpawnWith;
 
 use crate::theme::{self, local_tokens};
 use crate::widgets::general::{
-    HoverBackground, centered, filter_with_prompt, hide_filtered_components, scroll_area_demo,
-    text_row,
+    HoverBackground, centered, filter_with_prompt, hide_filtered_components, text_row,
+    vertical_scroll_area,
 };
 pub(super) fn plugin(app: &mut App) {
     app.add_observer(close_component_browser_on_select);
@@ -51,7 +51,7 @@ pub(crate) fn component_browser_widget(
                     SceneEditorComponentFilter,
                 ))),
             )),
-            Spawn(scroll_area_demo(spawn_component_entries(
+            Spawn(vertical_scroll_area(spawn_component_entries(
                 reg.clone(),
                 component_ui_anchor,
             ))),

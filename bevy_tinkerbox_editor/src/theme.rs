@@ -17,6 +17,7 @@ pub mod local_tokens {
     pub const ITEM_ACTIVE: ThemeToken = ThemeToken::new_static("local.item_active");
     pub const PANE_BG: ThemeToken = ThemeToken::new_static("local.pane_background");
     pub const PANE_BORDER: ThemeToken = ThemeToken::new_static("local.pane_border");
+    pub const SLIDER_ACTIVE: ThemeToken = ThemeToken::new_static("local.slider_inactive");
 }
 
 pub(super) fn plugin(app: &mut App) {
@@ -47,5 +48,9 @@ fn theme_init(mut theme: ResMut<UiTheme>) {
     theme.set_color(
         &local_tokens::PANE_BORDER.to_string(),
         feathers::palette::WARM_GRAY_1,
+    );
+    theme.set_color(
+        &local_tokens::SLIDER_ACTIVE.to_string(),
+        feathers::palette::ACCENT.lighter(0.2),
     );
 }

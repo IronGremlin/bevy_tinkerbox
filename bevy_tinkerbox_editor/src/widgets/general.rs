@@ -26,16 +26,69 @@ pub(super) fn plugin(app: &mut App) {
     app.add_systems(Update, value_edit_dispatch);
 }
 
-pub fn scroll_area_demo<F>(that_which_is_scrolled: SpawnWith<F>) -> impl Bundle
-where
-    F: FnOnce(&mut RelatedSpawner<ChildOf>) + Send + Sync + 'static,
-{
+fn scroll_field(overflow: Overflow) -> Node {
+    Node {
+        display: Display::Flex,
+        flex_direction: FlexDirection::Column,
+        padding: UiRect::all(px(4)),
+        row_gap: px(2),
+        overflow,
+        ..default()
+    }
+}
+fn scroll_bar(scroll_target: Entity, orientation: ControlOrientation) -> impl Bundle {
+    use ControlOrientation::*;
     (
-        // Frame element which contains the scroll area and scrollbars.
+        match orientation {
+            Horizontal => Node {
+                min_height: px(8),
+                grid_row: GridPlacement::start(2),
+                grid_column: GridPlacement::start(1),
+                ..default()
+            },
+            Vertical => Node {
+                min_width: px(8),
+                grid_row: GridPlacement::start(1),
+                grid_column: GridPlacement::start(2),
+                ..default()
+            },
+        },
+        Scrollbar {
+            orientation: orientation,
+            target: scroll_target,
+            min_thumb_length: 16.0,
+        },
+        ThemeBackgroundColor(tokens::SLIDER_BG),
+        ZIndex(10),
+        Children::spawn(Spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                border_radius: BorderRadius::all(px(4)),
+                ..default()
+            },
+            Hovered::default(),
+            ThemeBackgroundColor(tokens::SLIDER_BAR),
+            //TODO - This should be a broader 'hint' concept
+            // Refactor to use tokens
+            HoverBackground {
+                out: tokens::SLIDER_BAR,
+                over: local_tokens::SLIDER_ACTIVE,
+            },
+            CoreScrollbarThumb,
+            ZIndex(20),
+        ))),
+    )
+}
+fn scroll_box() -> impl Bundle {
+    (
         Node {
             display: Display::Grid,
             min_width: vw(20),
-            min_height: vh(20),
+            // No, I'm not going to try to explain this
+            // I'm done thinking about it
+            // I don't know why, but  this kind of works and I just don't care.
+            height: vmin(100),
+            max_height: vmin(90),
             grid_template_columns: vec![RepeatedGridTrack::flex(1, 1.), RepeatedGridTrack::auto(1)],
             grid_template_rows: vec![RepeatedGridTrack::flex(1, 1.), RepeatedGridTrack::auto(1)],
             row_gap: px(2),
@@ -43,60 +96,63 @@ where
             ..default()
         },
         BackgroundColor::from(Color::NONE),
+    )
+}
+
+pub fn vertical_scroll_area<F>(that_which_is_scrolled: SpawnWith<F>) -> impl Bundle
+where
+    F: FnOnce(&mut RelatedSpawner<ChildOf>) + Send + Sync + 'static,
+{
+    scroll_area(ScrollAxes::Y, that_which_is_scrolled)
+}
+
+pub enum ScrollAxes {
+    X,
+    Y,
+    XY,
+}
+
+pub fn scroll_area<F>(scroll_axes: ScrollAxes, that_which_is_scrolled: SpawnWith<F>) -> impl Bundle
+where
+    F: FnOnce(&mut RelatedSpawner<ChildOf>) + Send + Sync + 'static,
+{
+    (
+        // Frame element which contains the scroll area and scrollbars.
+        scroll_box(),
         Children::spawn((SpawnWith(move |parent: &mut RelatedSpawner<ChildOf>| {
             // The actual scrolling area.
             // Note that we're using `SpawnWith` here because we need to get the entity id of the
             // scroll area in order to set the target of the scrollbars.
             let scroll_area_id = parent
                 .spawn((
-                    Node {
-                        display: Display::Flex,
-                        flex_direction: FlexDirection::Column,
-                        padding: UiRect::all(px(4)),
-                        row_gap: px(2),
-                        overflow: Overflow {
+                    scroll_field(match scroll_axes {
+                        ScrollAxes::X => Overflow {
+                            x: OverflowAxis::Scroll,
+                            y: OverflowAxis::Clip,
+                        },
+                        ScrollAxes::Y => Overflow {
                             x: OverflowAxis::Clip,
                             y: OverflowAxis::Scroll,
                         },
-                        ..default()
-                    },
+                        ScrollAxes::XY => Overflow::scroll(),
+                    }),
                     ThemeBackgroundColor(local_tokens::PANE_BG),
                     ScrollPosition(Vec2::new(0.0, 0.0)),
                     Children::spawn(that_which_is_scrolled),
                 ))
                 .id();
-
-            // Vertical scrollbar
-            parent.spawn((
-                Node {
-                    min_width: px(8),
-                    grid_row: GridPlacement::start(1),
-                    grid_column: GridPlacement::start(2),
-                    ..default()
-                },
-                Scrollbar {
-                    orientation: ControlOrientation::Vertical,
-                    target: scroll_area_id,
-                    min_thumb_length: 16.0,
-                },
-                ThemeBackgroundColor(tokens::SLIDER_BG),
-                Children::spawn(Spawn((
-                    Node {
-                        position_type: PositionType::Absolute,
-                        border_radius: BorderRadius::all(px(4)),
-                        ..default()
-                    },
-                    Hovered::default(),
-                    ThemeBackgroundColor(tokens::SLIDER_BAR_DISABLED),
-                    //TODO - This should be a broader 'hint' concept
-                    // Refactor to use tokens
-                    HoverBackground {
-                        out: tokens::SLIDER_BAR_DISABLED,
-                        over: tokens::SLIDER_BAR,
-                    },
-                    CoreScrollbarThumb,
-                ))),
-            ));
+            match scroll_axes {
+                ScrollAxes::X => {
+                    parent.spawn(scroll_bar(scroll_area_id, ControlOrientation::Horizontal));
+                }
+                ScrollAxes::Y => {
+                    parent.spawn(scroll_bar(scroll_area_id, ControlOrientation::Vertical));
+                }
+                ScrollAxes::XY => {
+                    parent.spawn(scroll_bar(scroll_area_id, ControlOrientation::Vertical));
+                    parent.spawn(scroll_bar(scroll_area_id, ControlOrientation::Horizontal));
+                }
+            };
         }),)),
     )
 }

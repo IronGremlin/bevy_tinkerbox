@@ -173,23 +173,26 @@ pub fn spawn_editor(
                     is_hoverable: true,
                 },
                 children![
-                    scroll_area_demo(as_bundle((
-                        Node {
-                            flex_direction: FlexDirection::Column,
-                            ..default()
-                        },
-                        ThemeBackgroundColor(tokens::WINDOW_BG),
-                        children![
-                            add_entity_button(),
-                            (
-                                Node {
-                                    display: Display::Grid,
-                                    ..default()
-                                },
-                                SelectedEntityUiRoot,
-                            )
-                        ],
-                    ))),
+                    scroll_area(
+                        ScrollAxes::XY,
+                        as_bundle((
+                            Node {
+                                flex_direction: FlexDirection::Column,
+                                ..default()
+                            },
+                            ThemeBackgroundColor(tokens::WINDOW_BG),
+                            children![
+                                add_entity_button(),
+                                (
+                                    Node {
+                                        flex_direction: FlexDirection::Column,
+                                        ..default()
+                                    },
+                                    SelectedEntityUiRoot,
+                                )
+                            ],
+                        ))
+                    ),
                     (
                         Node {
                             flex_direction: FlexDirection::Column,
