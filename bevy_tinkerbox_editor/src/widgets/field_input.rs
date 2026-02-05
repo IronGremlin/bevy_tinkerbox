@@ -25,6 +25,7 @@ use bevy_ui_text_input::TextInputBuffer;
 use cosmic_text::Edit;
 use serde::de::DeserializeSeed;
 
+use crate::theme::local_text::FontSize;
 use crate::ui_context_core::FieldAccessPath;
 
 pub(super) fn plugin(app: &mut App) {
@@ -46,7 +47,7 @@ pub fn input_field_error(content: impl Into<String>) -> impl Bundle {
             ..default()
         },
         Text::new(content),
-        TextFont::from_font_size(9.),
+        FontSize::Normal.font(),
         TextColor(Srgba::RED.into()),
     )
 }
@@ -151,14 +152,12 @@ fn value_input_field_no_opinions() -> impl Bundle {
         },
         TextInputBuffer::default(),
         BackgroundColor(Srgba::hex("#46474d").unwrap_or(Srgba::WHITE).into()),
-        TextFont::from_font_size(9.0),
+        FontSize::Normal.font(),
         TextInputStyle { ..default() },
         Node {
-            max_height: px(18),
-            min_height: px(10),
-            max_width: px(60),
-            width: px(30),
-            min_width: px(10),
+            display: Display::Grid,
+            max_height: percent(100),
+            max_width: percent(100),
             ..default()
         },
         take_focus_on_click(),

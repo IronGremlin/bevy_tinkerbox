@@ -22,6 +22,7 @@ use bevy_ui_text_input::TextInputPlugin;
 
 use crate::{
     asset_extensions::asset_tracking::ResourceHandles,
+    theme::local_text::FontSize,
     ui_context_core::{
         ComponentIdentifer, EntityUiRoot, FieldAccessPath, RefreshInputFields, SelectedEntityUiRoot,
     },
@@ -147,7 +148,7 @@ pub fn spawn_editor(
                         BorderColor::from(Srgba::WHITE),
                         observe(save_scene_dialog),
                         observe(save_scene_with_path),
-                        children![(Text::new("Save"), TextFont::from_font_size(10.))]
+                        children![(Text::new("Save"), FontSize::Normal.font(),)]
                     ),
                     (
                         Node {
@@ -159,7 +160,7 @@ pub fn spawn_editor(
                         BorderColor::from(Srgba::WHITE),
                         observe(load_scene_dialog),
                         observe(load_scene_with_path),
-                        children![(Text::new("Load"), TextFont::from_font_size(10.))]
+                        children![(Text::new("Load"), FontSize::Normal.font())]
                     )
                 ],
             ),
@@ -186,8 +187,10 @@ pub fn spawn_editor(
                                 (
                                     Node {
                                         flex_direction: FlexDirection::Column,
+                                        row_gap: px(6.),
                                         ..default()
                                     },
+                                    ThemeBackgroundColor(tokens::WINDOW_BG),
                                     SelectedEntityUiRoot,
                                 )
                             ],

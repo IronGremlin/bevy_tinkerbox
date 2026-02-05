@@ -5,6 +5,7 @@ use bevy::{
         world::DeferredWorld,
     },
     feathers::{
+        font_styles::InheritableFont,
         theme::{ThemeBackgroundColor, ThemeToken, UiTheme},
         tokens,
     },
@@ -19,7 +20,10 @@ use bevy_ui_text_input::{
     TextInputBuffer, TextInputMode, TextInputNode, TextInputPrompt, TextInputStyle,
 };
 
-use crate::{theme::local_tokens, widgets::field_input::ValueInputOutput};
+use crate::{
+    theme::{local_text::FONT_SIZE, local_tokens},
+    widgets::field_input::ValueInputOutput,
+};
 
 pub(super) fn plugin(app: &mut App) {
     app.add_observer(watch_for_close);
@@ -84,10 +88,7 @@ fn scroll_box() -> impl Bundle {
         Node {
             display: Display::Grid,
             min_width: vw(20),
-            // No, I'm not going to try to explain this
-            // I'm done thinking about it
-            // I don't know why, but  this kind of works and I just don't care.
-            height: vmin(100),
+            max_width: vw(35),
             max_height: vmin(90),
             grid_template_columns: vec![RepeatedGridTrack::flex(1, 1.), RepeatedGridTrack::auto(1)],
             grid_template_rows: vec![RepeatedGridTrack::flex(1, 1.), RepeatedGridTrack::auto(1)],
@@ -274,11 +275,11 @@ pub fn take_focus_on_click() -> impl Bundle {
     )
 }
 
-pub fn text_row(caption: &str) -> (Text, TextFont) {
+pub fn text_row(caption: &str) -> (Text, InheritableFont) {
     (
         Text::new(caption),
-        TextFont {
-            font_size: 10.0,
+        InheritableFont {
+            font_size: FONT_SIZE,
             ..default()
         },
     )
@@ -393,4 +394,8 @@ fn value_edit_dispatch(
     for origin in q.iter() {
         commands.trigger(FormDataChanged { entity: origin });
     }
+}
+
+mod layout {
+    use bevy::prelude::*;
 }

@@ -80,14 +80,14 @@ impl EditorFieldUI for bool {
         );
         if *self {
             commands.entity(ctxt.ui_anchor()).insert((
-                checkbox(Checked, Spawn((Text::new(ctxt.path()), ThemedText))),
+                checkbox(Checked, Spawn(())),
                 click_watcher,
                 watcher,
                 world_watcher,
             ));
         } else {
             commands.entity(ctxt.ui_anchor()).insert((
-                checkbox((), Spawn((Text::new(ctxt.path()), ThemedText))),
+                checkbox((), Spawn(())),
                 click_watcher,
                 watcher,
                 world_watcher,

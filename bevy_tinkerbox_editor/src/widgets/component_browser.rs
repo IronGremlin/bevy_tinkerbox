@@ -9,6 +9,7 @@ use bevy::ecs::relationship::RelatedSpawner;
 
 use bevy::ecs::spawn::SpawnWith;
 
+use crate::theme::local_text::FontSize;
 use crate::theme::{self, local_tokens};
 use crate::widgets::general::{
     HoverBackground, centered, filter_with_prompt, hide_filtered_components, text_row,
@@ -36,10 +37,7 @@ pub(crate) fn component_browser_widget(
         Children::spawn((
             Spawn(centered((
                 Text::new("Add Components"),
-                TextFont {
-                    font_size: 11.0,
-                    ..default()
-                },
+                FontSize::Med.font(),
             ))),
             Spawn((
                 Node {

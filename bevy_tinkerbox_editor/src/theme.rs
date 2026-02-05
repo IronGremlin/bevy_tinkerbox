@@ -20,6 +20,35 @@ pub mod local_tokens {
     pub const SLIDER_ACTIVE: ThemeToken = ThemeToken::new_static("local.slider_inactive");
 }
 
+pub mod local_text {
+
+    use bevy::text::TextFont;
+
+    pub const BIG_FONT_SIZE: f32 = 18.0;
+    pub const MED_FONT_SIZE: f32 = 16.0;
+    pub const FONT_SIZE: f32 = 12.0;
+
+    #[derive(Default, Copy, Clone)]
+    pub enum FontSize {
+        Big,
+        Med,
+        #[default]
+        Normal,
+    }
+    impl FontSize {
+        pub fn font(self) -> TextFont {
+            TextFont::from_font_size(self.float())
+        }
+        pub fn float(self) -> f32 {
+            match self {
+                FontSize::Big => BIG_FONT_SIZE,
+                FontSize::Med => MED_FONT_SIZE,
+                FontSize::Normal => FONT_SIZE,
+            }
+        }
+    }
+}
+
 pub(super) fn plugin(app: &mut App) {
     app.add_systems(OnEnter(LoadingStatus::Complete), theme_init);
 }

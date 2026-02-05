@@ -1,15 +1,16 @@
-use std::any::TypeId;
+use std::{any::TypeId, ops::Deref, u16};
 
 use ::bevy::prelude::*;
 use bevy::{
     ecs::{reflect::ReflectCommandExt, relationship::RelatedSpawner, world::DeferredWorld},
     feathers::{
         controls::radio,
+        font_styles::InheritableFont,
         theme::{ThemeBorderColor, ThemedText},
     },
     platform::collections::HashSet,
     reflect::{
-        DynamicEnum, Enum, EnumInfo, OpaqueInfo, ParsedPath, ReflectKind, TypeInfo,
+        DynamicEnum, DynamicList, Enum, EnumInfo, OpaqueInfo, ParsedPath, ReflectKind, TypeInfo,
         TypeRegistration, VariantType,
     },
     ui::Checked,
@@ -23,7 +24,7 @@ use crate::{
         ReflectEditorFieldUI, ReflectEditorHeaderUI, ReflectEditorPerFieldUI,
     },
     instantiate_or_die,
-    theme::local_tokens,
+    theme::{local_text::FontSize, local_tokens},
     view_only_component,
     widgets::{
         component_browser::ComponentSelection,
@@ -135,7 +136,7 @@ fn scene_component_ui_instantiator(
     let type_id = src.type_id;
     let reg = world.resource::<AppTypeRegistry>();
     let mut all_my_kids = world.try_query::<&Children>().unwrap();
-    let Some(mut component_ui_state) = all_my_kids
+    let mut component_ui_state = all_my_kids
         .query(&world)
         .iter_descendants(window_root.clone())
         .find_map(|ent| {
@@ -146,9 +147,14 @@ fn scene_component_ui_instantiator(
                 None
             }
         })
-    else {
-        panic!("bummer");
-    };
+        .unwrap_or(
+            world
+                .entity(src.event_target())
+                .get::<EntityUiRoot>()
+                .expect("fallback failed")
+                .clone(),
+        );
+
     component_ui_state.desired_component_set.insert(type_id);
     let the_one_in_the_world = component_ui_state.component_holder;
     let reqs = world.required_components(type_id);
@@ -222,11 +228,9 @@ pub(crate) fn component_ui_initializer(
         .spawn((
             Node {
                 display: Display::Grid,
-                border: UiRect::all(px(1.)),
                 margin: UiRect::vertical(px(3.)),
                 ..default()
             },
-            ThemeBorderColor(local_tokens::PANE_BORDER),
             CloseRoot,
             ComponentIdentifer(source.component_type_registration.clone()),
         ))
@@ -367,13 +371,13 @@ impl<'a, 'b, 'w> ComponentUiContext<'a, 'b, 'w> {
                     Node {
                         flex_direction: FlexDirection::Row,
                         padding: UiRect::all(px(1.)),
-                        column_gap: px(2.),
+                        column_gap: px(6.),
                         ..default()
                     },
                     children![(
                         Name::new("Field Label"),
                         Text::new(step_context.local_name),
-                        TextFont::from_font_size(10.0),
+                        FontSize::Normal.font(),
                     )],
                 ))
                 .id();
@@ -423,8 +427,82 @@ impl<'a, 'b, 'w> ComponentUiContext<'a, 'b, 'w> {
             TypeInfo::Set(_info) => {
                 info!("View entity [Set]: {:?}", step_context.local_ui_focus);
             }
-            TypeInfo::List(_info) => {
+            TypeInfo::List(list_info) => {
                 info!("View entity [Li]: {:?}", step_context.local_ui_focus);
+                let shadow_list = step_context
+                    .local_path
+                    .reflect_element(self.the_component)
+                    .map_err(|_| 0)
+                    .and_then(|x| x.reflect_ref().as_list().map_err(|_| 0))
+                    .expect("invalid list path");
+                let type_name = step_context.local_type_name();
+
+                //TODO - List header contains on-click that inserts default item into world target's list at this path.
+                let list_header_element = commands.spawn_empty().id();
+
+                let list_root_layout = commands
+                    .spawn((
+                        Node {
+                            display: Display::Grid,
+                            grid_auto_flow: GridAutoFlow::Row,
+                            grid_template_rows: vec![
+                                RepeatedGridTrack::px(1, FontSize::Med.float() + 2.),
+                                RepeatedGridTrack::max_content(1),
+                            ],
+                            border: UiRect::all(px(2.)),
+                            ..default()
+                        },
+                        ThemeBorderColor(local_tokens::PANE_BG),
+                    ))
+                    .id();
+                let path = ParsedPath::parse(step_context.local_path.as_str()).unwrap();
+                let fap = FieldAccessPath {
+                    path,
+                    value_type_id: list_info.type_id(),
+                    component_type_id: self.component_type_registration.type_id(),
+                    owning_entity: self.world_target.clone(),
+                };
+
+                //TODO - list layout must observe/ catch events to flush and then regenerate list state
+                // when the structure of the list changes -
+                // Doesn't appear to be a great way to watch for this so we'll have to rely on other shit playing nice with us,
+                // but that's OK for an SLA for our auto-generated UI.
+                let list_item_layout = commands
+                    .spawn((
+                        fap.clone(),
+                        Node {
+                            display: Display::Grid,
+                            grid_auto_rows: GridTrack::minmax(
+                                MinTrackSizingFunction::Px(FontSize::Med.float()),
+                                MaxTrackSizingFunction::MaxContent,
+                            ),
+                            grid_auto_flow: GridAutoFlow::Row,
+                            //trash-can, up/down chev, list preview
+                            grid_template_columns: vec![
+                                RepeatedGridTrack::px(3, FontSize::Med.float() + 2.),
+                                RepeatedGridTrack::min_content(1),
+                            ],
+                            ..default()
+                        },
+                        observe(list_watch_updates),
+                    ))
+                    .id();
+
+                commands.entity(list_header_element).insert(list_header(
+                    list_item_layout,
+                    fap,
+                    step_context.local_name.clone(),
+                    step_context.local_type_name(),
+                ));
+                commands
+                    .entity(list_root_layout)
+                    .add_children(&[list_header_element, list_item_layout]);
+                commands
+                    .entity(step_context.local_ui_focus)
+                    .add_child(list_root_layout);
+                commands.trigger(RefreshInputFields {
+                    component_ui_root: list_item_layout,
+                });
             }
             //these two are esentially the same case
             TypeInfo::Tuple(_info) => {
@@ -626,15 +704,21 @@ impl<'a, 'b, 'w> ComponentUiContext<'a, 'b, 'w> {
         let row = commands
             .spawn((
                 Node {
-                    flex_direction: FlexDirection::Row,
+                    display: Display::Grid,
+                    grid_auto_flow: GridAutoFlow::Column,
+                    grid_auto_columns: vec![
+                        GridTrack::flex(1.),
+                        GridTrack::fr(3.),
+                        GridTrack::flex(2.),
+                    ],
                     padding: UiRect::all(px(1.)),
-                    column_gap: px(2.),
+                    column_gap: px(6.),
                     ..default()
                 },
                 children![(
                     Name::new("Field Label"),
                     Text::new(step_context.local_name),
-                    TextFont::from_font_size(10.0),
+                    FontSize::Normal.font(),
                 )],
             ))
             .id();
@@ -675,12 +759,107 @@ impl<'a, 'b, 'w> ComponentUiContext<'a, 'b, 'w> {
 
         commands.entity(row).with_child((
             Node { ..default() },
-            Text::new(o_info.type_path_table().short_path()),
-            TextFont::from_font_size(10.0),
+            children![(
+                Text::new(o_info.type_path_table().short_path()),
+                FontSize::Normal.font(),
+            )],
         ));
         commands.trigger(RefreshInputFields {
             component_ui_root: step_context.local_ui_focus,
         });
+    }
+}
+fn list_watch_updates(src: On<RefreshInputFields>, world: DeferredWorld, mut commands: Commands) {
+    commands.entity(src.event_target()).despawn_children();
+    let Some(mut faps) = world.try_query::<&FieldAccessPath>() else {
+        return;
+    };
+    let Ok(fap) = faps.get(&world, src.event_target()) else {
+        return;
+    };
+    let Ok(shadow) = world.get_reflect(fap.owning_entity, fap.component_type_id) else {
+        return;
+    };
+    let shadow_list = fap
+        .path
+        .reflect_element(shadow)
+        .map_err(|_| 0)
+        .and_then(|x| x.reflect_ref().as_list().map_err(|_| 0))
+        .expect("invalid list path");
+    let Some(item_type_info) = shadow_list
+        .get_represented_list_info()
+        .and_then(|x| x.item_info())
+    else {
+        return;
+    };
+    let app_registry = world.resource::<AppTypeRegistry>();
+    let registry = app_registry.read();
+    let Some(c_reg) = registry.get(fap.component_type_id) else {
+        return;
+    };
+    let ui_context = ComponentUiContext {
+        world_target: fap.owning_entity,
+        component_type_registration: c_reg,
+        the_component: shadow,
+        reg: app_registry,
+    };
+    let list_path = fap.path.to_string();
+    for (i, _n) in shadow_list.iter().enumerate() {
+        let idx: i16 = i.try_into().unwrap();
+        let trash = commands
+            .spawn((
+                Node {
+                    width: px(FontSize::Med.float()),
+                    height: px(FontSize::Med.float()),
+                    grid_row: GridPlacement::start(idx + 1),
+                    grid_column: GridPlacement::start(1),
+                    ..default()
+                },
+                BackgroundColor::from(Srgba::RED),
+            ))
+            .id();
+        let up_chev = commands
+            .spawn((
+                Node {
+                    width: px(FontSize::Med.float()),
+                    height: px(FontSize::Med.float()),
+                    grid_row: GridPlacement::start(idx + 1),
+                    grid_column: GridPlacement::start(2),
+                    ..default()
+                },
+                BackgroundColor::from(Srgba::BLUE),
+            ))
+            .id();
+        let down_chev = commands
+            .spawn((
+                Node {
+                    width: px(FontSize::Med.float()),
+                    height: px(FontSize::Med.float()),
+                    grid_row: GridPlacement::start(idx + 1),
+                    grid_column: GridPlacement::start(3),
+                    ..default()
+                },
+                BackgroundColor::from(Srgba::GREEN),
+            ))
+            .id();
+        let ui_anchor = commands
+            .spawn((Node {
+                grid_row: GridPlacement::start(idx + 1),
+                grid_column: GridPlacement::start(4),
+                ..default()
+            },))
+            .id();
+        commands
+            .entity(src.event_target())
+            .add_children(&[trash, up_chev, down_chev, ui_anchor]);
+
+        let next_step = ComponentUiStepContext {
+            local_ui_focus: ui_anchor,
+            local_type_info: item_type_info,
+            local_path: format!("{list_path}[{:?}]", i),
+            local_name: format!("{:?}", i),
+        };
+        ui_context.step(next_step, &mut commands);
     }
 }
 
@@ -728,12 +907,18 @@ fn radio_button_group(
             info.iter().enumerate().for_each(|(i, variant_info)| {
                 if i == current_idx {
                     parent.spawn((
-                        radio(Checked, Spawn((Text::new(variant_info.name()), ThemedText))),
+                        radio(
+                            Checked,
+                            Spawn((Text::new(variant_info.name()), FontSize::Normal.font())),
+                        ),
                         SelectionIndex(i),
                     ));
                 } else {
                     parent.spawn((
-                        radio((), Spawn((Text::new(variant_info.name()), ThemedText))),
+                        radio(
+                            (),
+                            Spawn((Text::new(variant_info.name()), FontSize::Normal.font())),
+                        ),
                         SelectionIndex(i),
                     ));
                 }
@@ -855,13 +1040,7 @@ fn component_title(name: impl Into<String>) -> impl Bundle {
     (
         Node::default(),
         children![
-            (
-                Text::new(name),
-                TextFont {
-                    font_size: 16.,
-                    ..Default::default()
-                }
-            ),
+            (Text::new(name), FontSize::Med.font(),),
             (
                 Name::new("Remove Component"),
                 Node {
@@ -882,13 +1061,18 @@ fn component_title(name: impl Into<String>) -> impl Bundle {
     )
 }
 fn field_layout() -> impl Bundle {
-    (Node {
-        display: Display::Grid,
-        border: UiRect::all(px(1.)),
-        padding: UiRect::vertical(px(2.)),
-        row_gap: px(2.0),
-        ..default()
-    },)
+    (
+        Node {
+            display: Display::Grid,
+            width: percent(100),
+            border: UiRect::top(px(2.)),
+            padding: UiRect::vertical(px(2.)),
+            margin: UiRect::vertical(px(2.)),
+            row_gap: px(3.),
+            ..default()
+        },
+        ThemeBorderColor(local_tokens::PANE_BORDER),
+    )
 }
 
 fn handle_enum_variant(
@@ -1002,7 +1186,7 @@ fn field_name_with_type(
         children![
             (
                 Node::default(),
-                children![(Text::new(field_name), TextFont::from_font_size(9.),)]
+                children![(Text::new(field_name), FontSize::Normal.font(),)]
             ),
             Node {
                 min_width: percent(10.),
@@ -1012,9 +1196,86 @@ fn field_name_with_type(
                 Node::default(),
                 children![(
                     Text::new(type_name),
-                    TextFont::from_font_size(10.),
+                    FontSize::Normal.font(),
                     BackgroundColor::from(Srgba::BLUE),
                 ),]
+            ),
+        ],
+    )
+}
+fn list_header(
+    entity: Entity,
+    fap: FieldAccessPath,
+    field_name: impl Into<String>,
+    type_name: impl Into<String>,
+) -> impl Bundle {
+    (
+        Node {
+            display: Display::Grid,
+            grid_auto_flow: GridAutoFlow::Column,
+            min_width: Val::Percent(10.0),
+            ..default()
+        },
+        children![
+            (
+                Node::default(),
+                children![(Text::new(field_name), FontSize::Normal.font(),)]
+            ),
+            Node {
+                min_width: percent(10.),
+                ..default()
+            },
+            (
+                Node::default(),
+                children![(
+                    Text::new(type_name),
+                    FontSize::Normal.font(),
+                    BackgroundColor::from(Srgba::BLUE),
+                ),]
+            ),
+            (
+                Name::new("Add List Entry Button"),
+                Node {
+                    width: px(14.),
+                    height: px(14.),
+                    ..default()
+                },
+                ImageNodeSansHandle::from_path("lucide/package-plus-white.png".to_owned()),
+                observe(
+                    move |_: On<Pointer<Click>>, world: DeferredWorld, mut commands: Commands| {
+                        let app_registry = world.resource::<AppTypeRegistry>();
+                        let Ok(our_component) =
+                            world.get_reflect(fap.owning_entity, fap.component_type_id)
+                        else {
+                            return;
+                        };
+                        let Ok(mut shadow) = our_component.reflect_clone() else {
+                            return;
+                        };
+                        let Ok(old_list) = fap
+                            .path
+                            .reflect_element_mut(shadow.as_partial_reflect_mut())
+                            .map_err(|_| 0)
+                            .and_then(|x| x.reflect_mut().as_list().map_err(|_| 0))
+                        else {
+                            return;
+                        };
+                        let Some(item_type) = old_list
+                            .get_represented_list_info()
+                            .map(|x| x.item_ty().id())
+                        else {
+                            return;
+                        };
+                        let Ok(some_val) = instantiate_or_die(app_registry, item_type, None) else {
+                            return;
+                        };
+                        old_list.insert(old_list.len(), some_val);
+                        commands.entity(fap.owning_entity).insert_reflect(shadow);
+                        commands.trigger(RefreshInputFields {
+                            component_ui_root: entity,
+                        });
+                    }
+                )
             ),
         ],
     )

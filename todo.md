@@ -15,8 +15,7 @@
   - [ ] Use that delicious new color picker ui to pick some colors
 - [ ] Fixup your silly transform widget
   - [X] Make it track actual transform state on load
-  - [ ] Make it populated actual transform state back to ui on edit
-    - This actually needs more plumbing, we need to introduce some concept of cascading state update, which needs to be careful not to clobber more specialized state management logic.
+  - [X] Make it populated actual transform state back to ui on edit
   - [ ] Make the buttons in the UI make sense - these should probably be lock buttons not toggle.
   - [ ] Refactor the related code to be not hot garbage also
 - [X] Update your text edit stuff to use the better API you introduced with TextureAtlas UI

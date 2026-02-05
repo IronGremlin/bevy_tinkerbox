@@ -1,17 +1,16 @@
 use bevy::{
-    feathers::theme::ThemeBackgroundColor, platform::collections::HashSet, prelude::*,
+    feathers::theme::{ThemeBackgroundColor, ThemeBorderColor},
+    platform::collections::HashSet,
+    prelude::*,
     ui_widgets::observe,
 };
 
 use crate::{
     EntityUiRoot, ImageNodeSansHandle,
-    theme::local_tokens,
+    theme::{local_text::FontSize, local_tokens},
     ui_context_core::SelectedEntityUiRoot,
-    widgets::{
-        component_browser::{
-            ComponentBrowserOpenRequest, ComponentBrowserWidgetRoot, component_browser_widget,
-        },
-        general::{as_bundle, vertical_scroll_area},
+    widgets::component_browser::{
+        ComponentBrowserOpenRequest, ComponentBrowserWidgetRoot, component_browser_widget,
     },
 };
 
@@ -26,6 +25,7 @@ pub(crate) fn add_entity_button() -> impl Bundle {
         observe(add_entity_on_click),
         children![
             Text::new("Add Entity"),
+            FontSize::Big.font(),
             (
                 Name::new("Add Entity Button"),
                 Node {
@@ -40,12 +40,15 @@ pub(crate) fn add_entity_button() -> impl Bundle {
 }
 
 pub fn make_new_entity_ui(entity: Entity) -> impl Bundle {
-    vertical_scroll_area(as_bundle((
+    (
         Node {
             display: Display::Grid,
+            border: UiRect::all(px(2.)),
+            padding: UiRect::all(px(3.)),
             ..default()
         },
         ThemeBackgroundColor(local_tokens::PANE_BG),
+        ThemeBorderColor(local_tokens::PANE_BORDER),
         EntityUiRoot {
             component_holder: entity,
             desired_component_set: HashSet::new(),
@@ -60,6 +63,7 @@ pub fn make_new_entity_ui(entity: Entity) -> impl Bundle {
             },
             children![
                 Text::new(format!("Entity({:?})", entity)),
+                FontSize::Big.font(),
                 (
                     Name::new("Entity"),
                     Node {
@@ -78,7 +82,7 @@ pub fn make_new_entity_ui(entity: Entity) -> impl Bundle {
                 ),
             ]
         )],
-    )))
+    )
 }
 
 pub(crate) fn add_entity_on_click(

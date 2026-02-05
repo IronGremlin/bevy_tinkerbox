@@ -11,6 +11,7 @@ use crate::{
     asset_extensions::editor_assets::AssortedIcons,
     drag_snap::{DragSnapState2d, SnapDrag, SnapDragEnd, WorldSnap2dGrid},
     editor_override_traits::{EditorPerFieldUI, impls::sprite::texture_atlas_layout::GridArgs},
+    theme::local_text::FontSize,
     ui_context_core::UiCtxt,
     widgets::{
         field_input::{ValueInputInput, ValueInputOutput, concrete_value_input_field},
@@ -241,10 +242,7 @@ fn initialize_texture_atlas_layout_ui(
                         height: px(36.),
                         ..default()
                     },
-                    children![(
-                        Text::new("Texture Atlas Layout"),
-                        TextFont::from_font_size(18.)
-                    )]
+                    children![(Text::new("Texture Atlas Layout"), FontSize::Big.font(),)]
                 ),
                 (
                     Node {
@@ -558,7 +556,6 @@ mod layout {
     pub const BIG_COLUMN_WIDTH: f32 = 64.;
     pub const BIG_ROW_HEIGHT: f32 = 18.;
     pub const SUB_COL_WIDTH: f32 = 24.;
-    pub const PRIMARY_FONT_SIZE: f32 = 9.;
 }
 use layout::*;
 #[derive(Reflect, Clone, Copy, Eq, PartialEq, Component)]
@@ -592,7 +589,7 @@ fn texture_atlas_preview_ui_bundle(args: texture_atlas_layout::GridArgs) -> impl
         }
     }
     fn sub_label(text: impl Into<String>) -> impl Bundle {
-        (Text::new(text), TextFont::from_font_size(PRIMARY_FONT_SIZE))
+        (Text::new(text), FontSize::Normal.font())
     }
     fn label(text: impl Into<String>) -> impl Bundle {
         (
@@ -600,7 +597,7 @@ fn texture_atlas_preview_ui_bundle(args: texture_atlas_layout::GridArgs) -> impl
                 display: Display::Grid,
                 ..default()
             },
-            children![(Text::new(text), TextFont::from_font_size(PRIMARY_FONT_SIZE))],
+            children![(Text::new(text), FontSize::Normal.font(),)],
         )
     }
     fn input_for(gargs: texture_atlas_layout::GridArgs, key: GridArgFieldKey) -> impl Bundle {
