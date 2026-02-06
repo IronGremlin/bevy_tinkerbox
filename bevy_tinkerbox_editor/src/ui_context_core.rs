@@ -1,4 +1,8 @@
-use std::{any::TypeId, ops::Deref, u16};
+use std::{
+    any::{Any, TypeId},
+    ops::Deref,
+    u16,
+};
 
 use ::bevy::prelude::*;
 use bevy::{
@@ -283,12 +287,11 @@ pub(crate) fn component_ui_initializer(
             return;
         }
     };
-    let component_ctxt = ComponentUiContext {
-        world_target: source.world_target,
-        component_type_registration: &source.component_type_registration,
-        the_component: component.as_partial_reflect(),
-        reg: world.resource::<AppTypeRegistry>(),
-    };
+    let component_ctxt = ComponentUiContext::new(
+        source.world_target,
+        source.component_type_registration.type_id(),
+        &world,
+    );
     let step_context = ComponentUiStepContext {
         local_ui_focus: component_card,
         local_type_info: source.component_type_registration.type_info(),
@@ -307,7 +310,7 @@ pub(crate) fn component_ui_initializer(
     new_ui_ctx.next(&mut commands);
 }
 pub struct UiCtxt<'a, 'b, 'w> {
-    root_context: &'a ComponentUiContext<'a, 'b, 'w>,
+    root_context: &'a ComponentUiContext<'b, 'w>,
     step_context: &'a ComponentUiStepContext<'a>,
 }
 impl<'a, 'b, 'w> UiCtxt<'a, 'b, 'w> {
@@ -324,7 +327,7 @@ impl<'a, 'b, 'w> UiCtxt<'a, 'b, 'w> {
         self.root_context.step(self.step_context.clone(), commands);
     }
     pub fn new(
-        root_context: &'a ComponentUiContext<'a, 'b, 'w>,
+        root_context: &'a ComponentUiContext<'b, 'w>,
         step_context: &'a ComponentUiStepContext<'a>,
     ) -> Self {
         Self {
@@ -346,13 +349,32 @@ impl<'a> ComponentUiStepContext<'a> {
     }
 }
 #[derive(Clone)]
-pub struct ComponentUiContext<'a, 'b, 'w> {
+pub struct ComponentUiContext<'b, 'w> {
     pub world_target: Entity,
-    pub component_type_registration: &'a TypeRegistration,
     pub the_component: &'b dyn PartialReflect,
     pub reg: &'w AppTypeRegistry,
 }
-impl<'a, 'b, 'w> ComponentUiContext<'a, 'b, 'w> {
+impl<'b, 'w> ComponentUiContext<'b, 'w> {
+    pub fn component_type_id(&self) -> TypeId {
+        self.the_component
+            .get_represented_type_info()
+            .expect("failure to retrieve represented type info")
+            .type_id()
+    }
+    pub fn new(
+        entity: Entity,
+        component_type: TypeId,
+        world: &'w World,
+    ) -> ComponentUiContext<'_, 'w> {
+        let component = world
+            .get_reflect(entity, component_type)
+            .expect("Failure to retrieve relfected component");
+        ComponentUiContext {
+            world_target: entity,
+            the_component: component.as_partial_reflect(),
+            reg: world.resource::<AppTypeRegistry>(),
+        }
+    }
     pub fn step(&self, step_context: ComponentUiStepContext, commands: &mut Commands) {
         let registry = self.reg.read();
         let registration = registry
@@ -393,7 +415,7 @@ impl<'a, 'b, 'w> ComponentUiContext<'a, 'b, 'w> {
                     commands.entity(bucket).insert(FieldAccessPath {
                         path: ParsedPath::parse(step_context.local_path.as_str()).unwrap(),
                         value_type_id: step_context.local_type_info.type_id(),
-                        component_type_id: self.component_type_registration.type_id(),
+                        component_type_id: self.component_type_id(),
                         owning_entity: self.world_target,
                     });
                     commands.trigger(RefreshInputFields {
@@ -459,7 +481,7 @@ impl<'a, 'b, 'w> ComponentUiContext<'a, 'b, 'w> {
                 let fap = FieldAccessPath {
                     path,
                     value_type_id: list_info.type_id(),
-                    component_type_id: self.component_type_registration.type_id(),
+                    component_type_id: self.component_type_id(),
                     owning_entity: self.world_target.clone(),
                 };
 
@@ -669,7 +691,7 @@ impl<'a, 'b, 'w> ComponentUiContext<'a, 'b, 'w> {
         let cap = FieldAccessPath {
             path,
             value_type_id: enum_info.type_id(),
-            component_type_id: self.component_type_registration.type_id(),
+            component_type_id: self.component_type_id(),
             owning_entity: self.world_target.clone(),
         };
         let radio_group_container = commands
@@ -733,7 +755,7 @@ impl<'a, 'b, 'w> ComponentUiContext<'a, 'b, 'w> {
             .and_then(|path| {
                 Ok(FieldAccessPath {
                     owning_entity: self.world_target.clone(),
-                    component_type_id: self.component_type_registration.type_id(),
+                    component_type_id: self.component_type_id(),
                     path: path,
                     value_type_id: step_context.local_type_info.type_id(),
                 })
@@ -793,13 +815,8 @@ fn list_watch_updates(src: On<RefreshInputFields>, world: DeferredWorld, mut com
         return;
     };
     let app_registry = world.resource::<AppTypeRegistry>();
-    let registry = app_registry.read();
-    let Some(c_reg) = registry.get(fap.component_type_id) else {
-        return;
-    };
     let ui_context = ComponentUiContext {
         world_target: fap.owning_entity,
-        component_type_registration: c_reg,
         the_component: shadow,
         reg: app_registry,
     };
@@ -1025,7 +1042,6 @@ fn enum_subelement_observer(
     handle_enum_variant(
         &ComponentUiContext {
             world_target: cap.owning_entity,
-            component_type_registration: &registration,
             the_component: the_component,
             reg: reg,
         },
