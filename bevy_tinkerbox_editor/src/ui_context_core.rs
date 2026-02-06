@@ -1,20 +1,15 @@
-use std::{
-    any::{Any, TypeId},
-    ops::Deref,
-    u16,
-};
+use std::any::TypeId;
 
 use ::bevy::prelude::*;
 use bevy::{
     ecs::{reflect::ReflectCommandExt, relationship::RelatedSpawner, world::DeferredWorld},
     feathers::{
         controls::radio,
-        font_styles::InheritableFont,
-        theme::{ThemeBorderColor, ThemedText},
+        theme::{ThemeBackgroundColor, ThemeBorderColor},
     },
     platform::collections::HashSet,
     reflect::{
-        DynamicEnum, DynamicList, Enum, EnumInfo, OpaqueInfo, ParsedPath, ReflectKind, TypeInfo,
+        DynamicEnum, Enum, EnumInfo, OpaqueInfo, ParsedPath, ReflectKind, TypeInfo,
         TypeRegistration, VariantType,
     },
     ui::Checked,
@@ -364,8 +359,8 @@ impl<'b, 'w> ComponentUiContext<'b, 'w> {
     pub fn new(
         entity: Entity,
         component_type: TypeId,
-        world: &'w World,
-    ) -> ComponentUiContext<'_, 'w> {
+        world: &'_ World,
+    ) -> ComponentUiContext<'_, '_> {
         let component = world
             .get_reflect(entity, component_type)
             .expect("Failure to retrieve relfected component");
@@ -451,13 +446,6 @@ impl<'b, 'w> ComponentUiContext<'b, 'w> {
             }
             TypeInfo::List(list_info) => {
                 info!("View entity [Li]: {:?}", step_context.local_ui_focus);
-                let shadow_list = step_context
-                    .local_path
-                    .reflect_element(self.the_component)
-                    .map_err(|_| 0)
-                    .and_then(|x| x.reflect_ref().as_list().map_err(|_| 0))
-                    .expect("invalid list path");
-                let type_name = step_context.local_type_name();
 
                 //TODO - List header contains on-click that inserts default item into world target's list at this path.
                 let list_header_element = commands.spawn_empty().id();
@@ -826,6 +814,7 @@ fn list_watch_updates(src: On<RefreshInputFields>, world: DeferredWorld, mut com
         let trash = commands
             .spawn((
                 Node {
+                    display: Display::Grid,
                     width: px(FontSize::Med.float()),
                     height: px(FontSize::Med.float()),
                     grid_row: GridPlacement::start(idx + 1),
@@ -838,6 +827,7 @@ fn list_watch_updates(src: On<RefreshInputFields>, world: DeferredWorld, mut com
         let up_chev = commands
             .spawn((
                 Node {
+                    display: Display::Grid,
                     width: px(FontSize::Med.float()),
                     height: px(FontSize::Med.float()),
                     grid_row: GridPlacement::start(idx + 1),
@@ -850,6 +840,7 @@ fn list_watch_updates(src: On<RefreshInputFields>, world: DeferredWorld, mut com
         let down_chev = commands
             .spawn((
                 Node {
+                    display: Display::Grid,
                     width: px(FontSize::Med.float()),
                     height: px(FontSize::Med.float()),
                     grid_row: GridPlacement::start(idx + 1),
@@ -861,6 +852,7 @@ fn list_watch_updates(src: On<RefreshInputFields>, world: DeferredWorld, mut com
             .id();
         let ui_anchor = commands
             .spawn((Node {
+                display: Display::Grid,
                 grid_row: GridPlacement::start(idx + 1),
                 grid_column: GridPlacement::start(4),
                 ..default()
@@ -1031,13 +1023,6 @@ fn enum_subelement_observer(
 
     let selection = newdata.current_vidx;
     let reg = world.resource::<AppTypeRegistry>();
-    let registration = match reg.read().get(cap.component_type_id) {
-        Some(f) => f.clone(),
-        None => {
-            info!("Failed to find type registration");
-            return;
-        }
-    };
 
     handle_enum_variant(
         &ComponentUiContext {
@@ -1195,7 +1180,13 @@ fn field_name_with_type(
 ) -> impl Bundle {
     (
         Node {
-            flex_direction: FlexDirection::Row,
+            display: Display::Grid,
+            grid_auto_flow: GridAutoFlow::Column,
+            grid_template_columns: vec![
+                RepeatedGridTrack::min_content(1),
+                RepeatedGridTrack::flex(1, 1.),
+                RepeatedGridTrack::min_content(1),
+            ],
             min_width: Val::Percent(10.0),
             ..default()
         },
@@ -1209,11 +1200,16 @@ fn field_name_with_type(
                 ..default()
             },
             (
-                Node::default(),
+                Node {
+                    display: Display::Grid,
+                    justify_self: JustifySelf::End,
+                    max_height: px(30.),
+                    ..default()
+                },
                 children![(
                     Text::new(type_name),
                     FontSize::Normal.font(),
-                    BackgroundColor::from(Srgba::BLUE),
+                    ThemeBackgroundColor(local_tokens::ITEM_ACTIVE)
                 ),]
             ),
         ],
@@ -1229,6 +1225,11 @@ fn list_header(
         Node {
             display: Display::Grid,
             grid_auto_flow: GridAutoFlow::Column,
+            grid_template_columns: vec![
+                RepeatedGridTrack::min_content(1),
+                RepeatedGridTrack::flex(1, 1.),
+                RepeatedGridTrack::min_content(1),
+            ],
             min_width: Val::Percent(10.0),
             ..default()
         },
@@ -1242,11 +1243,16 @@ fn list_header(
                 ..default()
             },
             (
-                Node::default(),
+                Node {
+                    display: Display::Grid,
+                    justify_self: JustifySelf::End,
+                    max_height: px(30.),
+                    ..default()
+                },
                 children![(
                     Text::new(type_name),
                     FontSize::Normal.font(),
-                    BackgroundColor::from(Srgba::BLUE),
+                    ThemeBackgroundColor(local_tokens::ITEM_ACTIVE)
                 ),]
             ),
             (

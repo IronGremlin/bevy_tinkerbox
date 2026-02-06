@@ -8,7 +8,7 @@ use crate::{
 use bevy::{
     asset::io::file::FileAssetReader,
     ecs::world::DeferredWorld,
-    feathers::{controls::checkbox, theme::ThemedText},
+    feathers::controls::checkbox,
     image::ImageLoader,
     prelude::*,
     ui::Checked,
