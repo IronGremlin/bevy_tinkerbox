@@ -726,9 +726,12 @@ impl<'b, 'w> ComponentUiContext<'b, 'w> {
                     ..default()
                 },
                 children![(
-                    Name::new("Field Label"),
-                    Text::new(step_context.local_name),
-                    FontSize::Normal.font(),
+                    Node::default(),
+                    children![
+                        Name::new("Field Label"),
+                        Text::new(step_context.local_name),
+                        FontSize::Normal.font(),
+                    ]
                 )],
             ))
             .id();

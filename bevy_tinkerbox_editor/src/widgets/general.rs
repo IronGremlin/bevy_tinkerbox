@@ -21,7 +21,10 @@ use bevy_ui_text_input::{
 };
 
 use crate::{
-    theme::{local_text::FONT_SIZE, local_tokens},
+    theme::{
+        local_text::{FONT_SIZE, FontSize},
+        local_tokens,
+    },
     widgets::field_input::ValueInputOutput,
 };
 
@@ -275,14 +278,8 @@ pub fn take_focus_on_click() -> impl Bundle {
     )
 }
 
-pub fn text_row(caption: &str) -> (Text, InheritableFont) {
-    (
-        Text::new(caption),
-        InheritableFont {
-            font_size: FONT_SIZE,
-            ..default()
-        },
-    )
+pub fn text_row(caption: &str) -> (Text, TextFont) {
+    (Text::new(caption), FontSize::Normal.font())
 }
 pub fn as_bundle(bundle: impl Bundle) -> SpawnWith<impl FnOnce(&mut RelatedSpawner<ChildOf>)> {
     SpawnWith(|p: &mut RelatedSpawner<ChildOf>| {

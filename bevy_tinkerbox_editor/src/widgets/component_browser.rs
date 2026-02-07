@@ -73,7 +73,7 @@ pub(crate) fn spawn_component_entries(
                     (
                         theme::local_tokens::WARNING_BG,
                         theme::local_tokens::WARNING_PRIMARY,
-                        "no ReflectDefault impl",
+                        " | no ReflectDefault impl",
                     )
                 } else {
                     (
@@ -83,7 +83,7 @@ pub(crate) fn spawn_component_entries(
                     )
                 };
             let name = format!(
-                "{} | {}",
+                "{}{}",
                 entry.type_info().type_path_table().short_path(),
                 warning
             );
