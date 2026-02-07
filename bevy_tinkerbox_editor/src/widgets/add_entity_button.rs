@@ -1,4 +1,5 @@
 use bevy::{
+    ecs::{entity::EntityHashSet, relationship::RelationshipSourceCollection},
     feathers::theme::{ThemeBackgroundColor, ThemeBorderColor},
     platform::collections::HashSet,
     prelude::*,
@@ -6,13 +7,17 @@ use bevy::{
 };
 
 use crate::{
-    EntityUiRoot, ImageNodeSansHandle,
+    ComponentUiFor, ComponentUisFor, EntityUiRoot, ImageNodeSansHandle,
     theme::{local_text::FontSize, local_tokens},
     ui_context_core::SelectedEntityUiRoot,
     widgets::component_browser::{
         ComponentBrowserOpenRequest, ComponentBrowserWidgetRoot, component_browser_widget,
     },
 };
+
+pub(super) fn plugin(app: &mut App) {
+    app.add_observer(handle_despawn_request);
+}
 
 pub(crate) fn add_entity_button() -> impl Bundle {
     (
@@ -65,7 +70,6 @@ pub fn make_new_entity_ui(entity: Entity) -> impl Bundle {
                 Text::new(format!("Entity({:?})", entity)),
                 FontSize::Big.font(),
                 (
-                    Name::new("Entity"),
                     Node {
                         width: px(24.),
                         height: px(24.),
@@ -78,6 +82,24 @@ pub fn make_new_entity_ui(entity: Entity) -> impl Bundle {
                             return;
                         }
                         commands.trigger(ComponentBrowserOpenRequest::new(src.event_target()));
+                    }),
+                ),
+                (
+                    Node {
+                        width: px(24.),
+                        height: px(24.),
+                        ..default()
+                    },
+                    ImageNodeSansHandle {
+                        color: Color::from(Srgba::RED),
+                        ..ImageNodeSansHandle::from_path("lucide/trash-2-white.png".to_owned())
+                    },
+                    observe(move |src: On<Pointer<Click>>, mut commands: Commands| {
+                        //eat clicks from children
+                        if src.event_target() != src.original_event_target() {
+                            return;
+                        }
+                        commands.trigger(RemoveEntity { entity });
                     }),
                 ),
             ]
@@ -122,4 +144,42 @@ pub(crate) fn add_component_button_on_click(
         .entity(b_anchor)
         .despawn_children()
         .with_child(component_browser_widget(&reg, c_anchor));
+}
+
+#[derive(EntityEvent)]
+pub struct RemoveEntity {
+    entity: Entity,
+}
+
+fn handle_despawn_request(
+    src: On<RemoveEntity>,
+    uis: Query<&ComponentUisFor>,
+    entity_roots: Query<(Entity, &EntityUiRoot)>,
+    component_uis_sans_node: Query<Entity, (With<ComponentUiFor>, Without<Node>)>,
+    mut commands: Commands,
+) {
+    let mut dead_letter_queue = EntityHashSet::new();
+    let dead = src.event_target();
+    dead_letter_queue.add(dead);
+    //TODO - this is more expensive than it has to be, but it should remain an infrequent operation.
+    // Probably we should make this into a real relationship with a bi-directional link.
+    entity_roots.iter().for_each(|(entity, ui_root)| {
+        if ui_root.component_holder == dead {
+            dead_letter_queue.add(entity);
+        }
+    });
+    //Assumption:
+    // All uis for components without nodes represent the root of some worldspace widget collection.
+    // All uis for components that do contain nodes are parented by some EntityUiRoot.
+    let _ = uis.get(dead).map(|x| {
+        x.0.iter()
+            .filter_map(|ent| component_uis_sans_node.get(ent).ok())
+            .for_each(|entity| {
+                dead_letter_queue.add(entity);
+            })
+    });
+
+    for n in dead_letter_queue {
+        commands.entity(n).despawn();
+    }
 }

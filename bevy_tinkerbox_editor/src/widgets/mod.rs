@@ -10,6 +10,7 @@ pub mod view_only_component;
 pub(super) fn plugin(app: &mut App) {
     app.add_plugins((
         component_browser::plugin,
+        add_entity_button::plugin,
         general::plugin,
         field_input::plugin,
         scene_actions::plugin,
