@@ -17,6 +17,7 @@ use crate::{
 
 pub(super) fn plugin(app: &mut App) {
     app.add_observer(handle_despawn_request);
+    app.add_systems(Update, name_plate_update);
 }
 
 pub(crate) fn add_entity_button() -> impl Bundle {
@@ -67,8 +68,11 @@ pub fn make_new_entity_ui(entity: Entity) -> impl Bundle {
                 ..default()
             },
             children![
-                Text::new(format!("Entity({:?})", entity)),
-                FontSize::Big.font(),
+                (
+                    Text::new(format!("Entity({:?})", entity)),
+                    EntityNamePlate,
+                    FontSize::Big.font()
+                ),
                 (
                     Node {
                         width: px(24.),
@@ -181,5 +185,31 @@ fn handle_despawn_request(
 
     for n in dead_letter_queue {
         commands.entity(n).despawn();
+    }
+}
+#[derive(Component)]
+struct EntityNamePlate;
+
+//TODO - We should handle name removal too.
+fn name_plate_update(
+    mut name_plates: Query<&mut Text, With<EntityNamePlate>>,
+    names_we_care_about: Query<(Entity, &Name), Changed<Name>>,
+    entity_roots: Query<(Entity, &EntityUiRoot)>,
+    kids: Query<&Children>,
+) {
+    for (named, name) in names_we_care_about.iter() {
+        for (name_plate_root, root) in entity_roots.iter() {
+            if root.component_holder == named {
+                for desc in kids.iter_descendants(name_plate_root) {
+                    if let Ok(mut plate) = name_plates.get_mut(desc) {
+                        plate.0 = if !name.is_empty() {
+                            format!("{} : Entity({:?})", name, named)
+                        } else {
+                            format!("Entity({:?})", named)
+                        }
+                    }
+                }
+            }
+        }
     }
 }

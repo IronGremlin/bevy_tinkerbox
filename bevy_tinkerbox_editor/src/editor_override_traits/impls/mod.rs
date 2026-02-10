@@ -1,9 +1,10 @@
 use crate::{
     FieldAccessPath, ImageNodeSansHandle, RefreshInputFields, UpdateComponentFieldValue,
     editor_override_traits::{
-        EditorFieldUI, ReflectEditorFieldUI, ReflectEditorHeaderUI, ReflectEditorPerFieldUI,
+        EditorFieldUI, EditorPerFieldUI, ReflectEditorFieldUI, ReflectEditorHeaderUI,
+        ReflectEditorPerFieldUI,
     },
-    ui_context_core::UiCtxt,
+    ui_context_core::{ComponentUiStepContext, UiCtxt, field_layout},
 };
 use bevy::{
     asset::io::file::FileAssetReader,
@@ -33,7 +34,29 @@ fn manually_registering_trait_data_for_fun_and_profit(reg: ResMut<AppTypeRegistr
     registry.register_type_data::<Handle<Image>, ReflectEditorFieldUI>();
     registry.register_type_data::<Transform, ReflectEditorPerFieldUI>();
     registry.register_type_data::<Transform, ReflectEditorHeaderUI>();
+    registry.register_type_data::<Name, ReflectEditorFieldUI>();
     registry.register_type_data::<Sprite, ReflectEditorPerFieldUI>();
+}
+
+impl EditorFieldUI for Name {
+    fn construct_field_ui(&self, ctxt: &UiCtxt, commands: &mut Commands) {
+        // let field_layout = commands.spawn(field_layout()).id();
+        // commands.entity(ctxt.ui_anchor()).add_child(field_layout);
+        commands.entity(ctxt.ui_anchor()).insert(field_layout());
+        let name_struct_info = ctxt.value_type_info().as_struct().unwrap();
+        let name_field_info = name_struct_info
+            .field("name")
+            .and_then(|t| t.type_info())
+            .unwrap();
+
+        let next_step = ComponentUiStepContext {
+            local_ui_focus: ctxt.ui_anchor(),
+            local_type_info: name_field_info,
+            local_path: "name".to_owned(),
+            local_name: "name".to_owned(),
+        };
+        ctxt.override_step(next_step, commands);
+    }
 }
 
 impl EditorFieldUI for bool {

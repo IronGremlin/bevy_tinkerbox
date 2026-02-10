@@ -318,6 +318,12 @@ impl<'a, 'b, 'w> UiCtxt<'a, 'b, 'w> {
     pub fn path(&self) -> &str {
         self.step_context.local_path.as_str()
     }
+    pub fn value_type_info(&self) -> &'a TypeInfo {
+        self.step_context.local_type_info
+    }
+    pub fn override_step(&self, overrride_ctxt: ComponentUiStepContext, commands: &mut Commands) {
+        self.root_context.step(overrride_ctxt, commands);
+    }
     pub fn next(&self, commands: &mut Commands) {
         self.root_context.step(self.step_context.clone(), commands);
     }
@@ -726,12 +732,9 @@ impl<'b, 'w> ComponentUiContext<'b, 'w> {
                     ..default()
                 },
                 children![(
-                    Node::default(),
-                    children![
-                        Name::new("Field Label"),
-                        Text::new(step_context.local_name),
-                        FontSize::Normal.font(),
-                    ]
+                    Name::new("Field Label"),
+                    Text::new(step_context.local_name),
+                    FontSize::Normal.font(),
                 )],
             ))
             .id();
@@ -1064,7 +1067,7 @@ fn component_title(name: impl Into<String>) -> impl Bundle {
         ],
     )
 }
-fn field_layout() -> impl Bundle {
+pub fn field_layout() -> impl Bundle {
     (
         Node {
             display: Display::Grid,
