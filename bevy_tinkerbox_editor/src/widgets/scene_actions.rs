@@ -51,7 +51,7 @@ fn scene_save(src: On<SaveScene>, world: DeferredWorld) {
             .collect();
         info!(
             "Entity: {:?} with {:?} components",
-            ui_root.component_holder,
+            ui_root.world_target,
             desired_serialization_components.len()
         );
         for x in desired_serialization_components.iter() {
@@ -60,7 +60,7 @@ fn scene_save(src: On<SaveScene>, world: DeferredWorld) {
 
         let smol_scene = DynamicSceneBuilder::from_world(&*world)
             .with_component_filter(SceneFilter::Allowlist(desired_serialization_components))
-            .extract_entity(ui_root.component_holder)
+            .extract_entity(ui_root.world_target)
             .build();
         let r =
             smol_scene.write_to_world_with(&mut tiny_world, &mut mapper, &type_registry.clone());

@@ -153,9 +153,9 @@ fn transform_editor_presentation(
             match cursor {
                 Ok((_, Some(uiroot))) => {
                     commands.trigger(ConstructTransformWidgetFor {
-                        entity: uiroot.component_holder,
+                        entity: uiroot.world_target,
                         op: if state.global_show_widget && state.show_translation_gizmo {
-                            info!("ja bro: {:?}", uiroot.component_holder);
+                            info!("ja bro: {:?}", uiroot.world_target);
                             Op::Create
                         } else {
                             Op::Destroy

@@ -1,3 +1,4 @@
+
 use std::{any::TypeId, collections::VecDeque};
 
 use bevy::{
@@ -317,11 +318,11 @@ fn component_ui_despawner(mut world: DeferredWorld, context: HookContext) {
             } else {
                 for c_id in dead_letter_bin {
                     commands
-                        .entity(new_root.component_holder)
+                        .entity(new_root.world_target)
                         .remove_by_id(c_id);
                 }
 
-                commands.entity(new_root.component_holder).log_components();
+                commands.entity(new_root.world_target).log_components();
             }
             commands
                 .entity(ui)

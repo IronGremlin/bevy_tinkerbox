@@ -7,12 +7,9 @@ use bevy::{
 };
 
 use crate::{
-    ComponentUiFor, ComponentUisFor, EntityUiRoot, ImageNodeSansHandle,
-    theme::{local_text::FontSize, local_tokens},
-    ui_context_core::SelectedEntityUiRoot,
-    widgets::component_browser::{
-        ComponentBrowserOpenRequest, ComponentBrowserWidgetRoot, component_browser_widget,
-    },
+    theme::{local_text::FontSize, local_tokens}, ui_context_core::{SelectedEntityUiRoot, WorldTarget}, widgets::component_browser::{
+        component_browser_widget, ComponentBrowserOpenRequest, ComponentBrowserWidgetRoot
+    }, ComponentUiFor, ComponentUisFor, EntityUiRoot, ImageNodeSansHandle
 };
 
 pub(super) fn plugin(app: &mut App) {
@@ -56,7 +53,7 @@ pub fn make_new_entity_ui(entity: Entity) -> impl Bundle {
         ThemeBackgroundColor(local_tokens::PANE_BG),
         ThemeBorderColor(local_tokens::PANE_BORDER),
         EntityUiRoot {
-            component_holder: entity,
+            world_target: entity,
             desired_component_set: HashSet::new(),
             ride_along_components: HashSet::new(),
         },
@@ -158,26 +155,20 @@ pub struct RemoveEntity {
 fn handle_despawn_request(
     src: On<RemoveEntity>,
     uis: Query<&ComponentUisFor>,
-    entity_roots: Query<(Entity, &EntityUiRoot)>,
-    component_uis_sans_node: Query<Entity, (With<ComponentUiFor>, Without<Node>)>,
+    sans_node: Query<Entity, (With<ComponentUiFor>,Without<Node>)>,
     mut commands: Commands,
 ) {
     let mut dead_letter_queue = EntityHashSet::new();
     let dead = src.event_target();
     dead_letter_queue.add(dead);
-    //TODO - this is more expensive than it has to be, but it should remain an infrequent operation.
-    // Probably we should make this into a real relationship with a bi-directional link.
-    entity_roots.iter().for_each(|(entity, ui_root)| {
-        if ui_root.component_holder == dead {
-            dead_letter_queue.add(entity);
-        }
-    });
+
     //Assumption:
     // All uis for components without nodes represent the root of some worldspace widget collection.
-    // All uis for components that do contain nodes are parented by some EntityUiRoot.
+    // All uis for components that do contain nodes will be parented by the Entity who owns our EntityUiRoot,
+    // and since we will be a WorldTarget, when we despawn, we will drag them all to hell with us.
     let _ = uis.get(dead).map(|x| {
         x.0.iter()
-            .filter_map(|ent| component_uis_sans_node.get(ent).ok())
+            .filter_map(|ent| sans_node.get(ent).ok())
             .for_each(|entity| {
                 dead_letter_queue.add(entity);
             })
@@ -193,23 +184,18 @@ struct EntityNamePlate;
 //TODO - We should handle name removal too.
 fn name_plate_update(
     mut name_plates: Query<&mut Text, With<EntityNamePlate>>,
-    names_we_care_about: Query<(Entity, &Name), Changed<Name>>,
-    entity_roots: Query<(Entity, &EntityUiRoot)>,
+    names_we_care_about: Query<(Entity, &Name, &WorldTarget), Changed<Name>>,
     kids: Query<&Children>,
 ) {
-    for (named, name) in names_we_care_about.iter() {
-        for (name_plate_root, root) in entity_roots.iter() {
-            if root.component_holder == named {
-                for desc in kids.iter_descendants(name_plate_root) {
-                    if let Ok(mut plate) = name_plates.get_mut(desc) {
-                        plate.0 = if !name.is_empty() {
-                            format!("{} : Entity({:?})", name, named)
-                        } else {
-                            format!("Entity({:?})", named)
-                        }
-                    }
+    for (named, name, world_target) in names_we_care_about.iter() {
+        for desc in kids.iter_descendants(world_target.ui_root()) {
+            if let Ok(mut plate) = name_plates.get_mut(desc) {
+                plate.0 = if !name.is_empty() {
+                    format!("{} : Entity({:?})", name, named)
+                } else {
+                    format!("Entity({:?})", named)
                 }
             }
-        }
+        }   
     }
 }

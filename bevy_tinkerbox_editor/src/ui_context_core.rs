@@ -2,7 +2,7 @@ use std::any::TypeId;
 
 use ::bevy::prelude::*;
 use bevy::{
-    ecs::{reflect::ReflectCommandExt, relationship::RelatedSpawner, world::DeferredWorld},
+    ecs::{lifecycle::HookContext, reflect::ReflectCommandExt, relationship::RelatedSpawner, world::DeferredWorld},
     feathers::{
         controls::radio,
         theme::{ThemeBackgroundColor, ThemeBorderColor},
@@ -13,7 +13,7 @@ use bevy::{
         TypeRegistration, VariantType,
     },
     ui::Checked,
-    ui_widgets::{RadioButton, RadioGroup, ValueChange, observe},
+    ui_widgets::{observe, RadioButton, RadioGroup, ValueChange},
 };
 
 use crate::{
@@ -51,7 +51,7 @@ pub(crate) fn root(source: On<ComponentSelection>, dworld: DeferredWorld, mut co
     };
 
     let type_id = source.base;
-    let the_one_in_the_world = component_ui_state.component_holder;
+    let the_one_in_the_world = component_ui_state.world_target;
 
     if component_ui_state.desired_component_set.insert(type_id) {
         if let Ok(init_component) = instantiate_or_die(&*reg, type_id, None) {
@@ -155,7 +155,7 @@ fn scene_component_ui_instantiator(
         );
 
     component_ui_state.desired_component_set.insert(type_id);
-    let the_one_in_the_world = component_ui_state.component_holder;
+    let the_one_in_the_world = component_ui_state.world_target;
     let reqs = world.required_components(type_id);
     let r = reg.read();
     for component_type_id in reqs {
@@ -1366,8 +1366,38 @@ pub struct SelectedEntityUiRoot;
 pub struct ComponentIdentifer(pub TypeRegistration);
 
 #[derive(Component, Clone)]
+#[component(on_add=on_entity_ui_root_add)]
+#[component(on_remove=on_entity_ui_root_remove)]
 pub struct EntityUiRoot {
-    pub component_holder: Entity,
+    pub world_target: Entity,
     pub desired_component_set: HashSet<TypeId>,
     pub ride_along_components: HashSet<TypeId>,
+}
+
+#[derive(Component, Clone)]
+#[component(on_remove=on_world_target_remove)]
+pub struct WorldTarget {
+    entity_ui_root: Entity,
+}
+impl WorldTarget {
+    pub fn ui_root(&self) -> Entity {
+	self.entity_ui_root
+    }
+}
+fn on_entity_ui_root_add(mut world: DeferredWorld, context: HookContext) {
+    let world_target = world.entity(context.entity).get::<EntityUiRoot>().unwrap().world_target;
+    
+    world.commands().entity(world_target).insert(
+	WorldTarget {
+	    entity_ui_root: context.entity
+	});
+}
+fn on_entity_ui_root_remove(mut world: DeferredWorld, context: HookContext) {
+    let world_target = world.entity(context.entity).get::<EntityUiRoot>().unwrap().world_target;
+    
+    world.commands().entity(world_target).try_despawn();
+}
+fn on_world_target_remove(mut world: DeferredWorld, context: HookContext) {
+    let entity_ui_root = world.entity(context.entity).get::<WorldTarget>().unwrap().entity_ui_root;
+    world.commands().entity(entity_ui_root).try_despawn();
 }

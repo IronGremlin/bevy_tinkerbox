@@ -5,7 +5,6 @@ use bevy::{
         world::DeferredWorld,
     },
     feathers::{
-        font_styles::InheritableFont,
         theme::{ThemeBackgroundColor, ThemeToken, UiTheme},
         tokens,
     },
@@ -22,7 +21,7 @@ use bevy_ui_text_input::{
 
 use crate::{
     theme::{
-        local_text::{FONT_SIZE, FontSize},
+        local_text::FontSize,
         local_tokens,
     },
     widgets::field_input::ValueInputOutput,
@@ -391,8 +390,4 @@ fn value_edit_dispatch(
     for origin in q.iter() {
         commands.trigger(FormDataChanged { entity: origin });
     }
-}
-
-mod layout {
-    use bevy::prelude::*;
 }
