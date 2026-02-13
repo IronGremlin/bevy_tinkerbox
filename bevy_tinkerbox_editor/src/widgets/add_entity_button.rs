@@ -7,12 +7,9 @@ use bevy::{
 };
 
 use crate::{
-    ComponentUiFor, ComponentUisFor, EntityUiRoot, ImageNodeSansHandle,
-    theme::{local_text::FontSize, local_tokens},
-    ui_context_core::{SelectedEntityUiRoot, WorldTarget},
-    widgets::component_browser::{
-        ComponentBrowserOpenRequest, ComponentBrowserWidgetRoot, component_browser_widget,
-    },
+    theme::{local_text::FontSize, local_tokens}, ui_context_core::{SelectedEntityUiRoot, WorldTarget}, widgets::{component_browser::{
+        component_browser_widget, ComponentBrowserOpenRequest, ComponentBrowserWidgetRoot
+    }, icons::IconImage}, ComponentUiFor, ComponentUisFor, EntityUiRoot
 };
 
 pub(super) fn plugin(app: &mut App) {
@@ -39,7 +36,7 @@ pub(crate) fn add_entity_button() -> impl Bundle {
                     height: px(32.),
                     ..default()
                 },
-                ImageNodeSansHandle::from_path("lucide/package-plus-white.png".to_owned())
+                IconImage::from_path("lucide/package-plus-white.png".to_owned())
             ),
         ],
     )
@@ -79,7 +76,7 @@ pub fn make_new_entity_ui(entity: Entity) -> impl Bundle {
                         height: px(24.),
                         ..default()
                     },
-                    ImageNodeSansHandle::from_path("lucide/list-plus-white.png".to_owned()),
+                    IconImage::from_path("lucide/list-plus-white.png".to_owned()),
                     observe(|src: On<Pointer<Click>>, mut commands: Commands| {
                         //eat clicks from children
                         if src.event_target() != src.original_event_target() {
@@ -94,9 +91,9 @@ pub fn make_new_entity_ui(entity: Entity) -> impl Bundle {
                         height: px(24.),
                         ..default()
                     },
-                    ImageNodeSansHandle {
+                    IconImage {
                         color: Color::from(Srgba::RED),
-                        ..ImageNodeSansHandle::from_path("lucide/trash-2-white.png".to_owned())
+                        ..IconImage::from_path("lucide/trash-2-white.png".to_owned())
                     },
                     observe(move |src: On<Pointer<Click>>, mut commands: Commands| {
                         //eat clicks from children

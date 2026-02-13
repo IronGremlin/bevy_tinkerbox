@@ -2,7 +2,7 @@ use std::any::TypeId;
 
 use bevy::{prelude::*, ui_widgets::observe};
 
-use crate::{EntityUiRoot, ImageNodeSansHandle, widgets::component_browser::ComponentSelection};
+use crate::{widgets::{component_browser::ComponentSelection, icons::IconImage}, EntityUiRoot};
 
 #[derive(Component)]
 pub struct RideAlongComponent(pub TypeId);
@@ -20,7 +20,7 @@ pub fn view_only_component(name: String, type_id: TypeId) -> impl Bundle {
                     height: px(12.),
                     ..default()
                 },
-                ImageNodeSansHandle::from_path("lucide/square-pen-white.png".to_owned()),
+                IconImage::from_path("lucide/square-pen-white.png".to_owned()),
                 observe(
                     move |src: On<Pointer<Click>>,
                           find_anchor: Query<(Entity, Option<&ChildOf>, Option<&EntityUiRoot>)>,

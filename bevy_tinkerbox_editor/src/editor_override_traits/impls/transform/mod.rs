@@ -1,10 +1,7 @@
 use bevy::{prelude::*, ui_widgets::observe};
 
 use crate::{
-    ComponentUiFor, ComponentUisFor, EntityUiRoot, ImageNodeSansHandle,
-    editor_override_traits::{EditorHeaderUI, EditorPerFieldUI},
-    ui_context_core::{RefreshInputFields, UiCtxt},
-    widgets::general::{FormControl, FormControlSubject, FormElement, FormElementMarker},
+    editor_override_traits::{EditorHeaderUI, EditorPerFieldUI}, ui_context_core::{RefreshInputFields, UiCtxt}, widgets::{general::{FormControl, FormControlSubject, FormElement, FormElementMarker}, icons::IconImage}, ComponentUiFor, ComponentUisFor, EntityUiRoot
 };
 pub(super) fn plugin(app: &mut App) {
     app.add_observer(transform_editor_widget_spawner);
@@ -51,7 +48,7 @@ impl EditorPerFieldUI for Transform {
                                 form.show_translation_gizmo = !form.show_translation_gizmo;
                             }
                         }),
-                        ImageNodeSansHandle::from_path("lucide/move-white.png".to_owned())
+                        IconImage::from_path("lucide/move-white.png".to_owned())
                     )],
                 ));
             }
@@ -71,7 +68,7 @@ impl EditorPerFieldUI for Transform {
                                 form.show_rotation_gizmo = !form.show_rotation_gizmo;
                             }
                         }),
-                        ImageNodeSansHandle::from_path("lucide/rotate-ccw-white.png".to_owned())
+                        IconImage::from_path("lucide/rotate-ccw-white.png".to_owned())
                     )],
                 ));
             }
@@ -91,7 +88,7 @@ impl EditorPerFieldUI for Transform {
                                 form.show_scale_gizmo = !form.show_scale_gizmo;
                             }
                         }),
-                        ImageNodeSansHandle::from_path("lucide/maximize-2-white.png".to_owned())
+                        IconImage::from_path("lucide/maximize-2-white.png".to_owned())
                     )],
                 ));
             }
@@ -247,7 +244,7 @@ impl EditorHeaderUI for Transform {
                     watcher(|mut form| {
                         form.global_show_widget = !form.global_show_widget;
                     }),
-                    ImageNodeSansHandle::from_path("lucide/eye-white.png".to_owned())
+                    IconImage::from_path("lucide/eye-white.png".to_owned())
                 ),
                 (
                     Node {
@@ -264,7 +261,7 @@ impl EditorHeaderUI for Transform {
                             Is3D => Is2D,
                         };
                     }),
-                    ImageNodeSansHandle::from_path("lucide/move-3d-white.png".to_owned())
+                    IconImage::from_path("lucide/move-3d-white.png".to_owned())
                 )
             ],
         ));

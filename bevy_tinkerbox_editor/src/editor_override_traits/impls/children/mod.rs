@@ -6,13 +6,14 @@ use bevy::{
 };
 
 use crate::{
-    EditorUiScreenRoot, ImageNodeSansHandle,
+    EditorUiScreenRoot,
     editor_override_traits::EditorFieldUI,
     theme::{self, local_text::FontSize, local_tokens},
     ui_context_core::{RefreshInputFields, UiCtxt},
     widgets::{
         add_entity_button::{NamedWorldTarget, NamedWorldTargetItem},
         general::{CloseEvent, CloseRoot, HoverBackground},
+        icons::IconImage,
     },
 };
 
@@ -100,7 +101,10 @@ fn children_on_refresh(
                     grid_column: GridPlacement::start(1),
                     ..default()
                 },
-                BackgroundColor::from(Srgba::RED),
+                IconImage {
+                    color: Color::from(Srgba::RED),
+                    ..IconImage::from_path("lucide/trash-2-white.png".to_owned())
+                },
             ))
             .id();
         let up_chev = commands
@@ -113,7 +117,7 @@ fn children_on_refresh(
                     grid_column: GridPlacement::start(2),
                     ..default()
                 },
-                BackgroundColor::from(Srgba::BLUE),
+                IconImage::from_path("lucide/chevron-up-white.png".to_owned()),
             ))
             .id();
         let down_chev = commands
@@ -126,12 +130,10 @@ fn children_on_refresh(
                     grid_column: GridPlacement::start(3),
                     ..default()
                 },
-                BackgroundColor::from(Srgba::GREEN),
+                IconImage::from_path("lucide/chevron-down-white.png".to_owned()),
             ))
             .id();
-        let ui_anchor = commands
-            .spawn(entity_display_item(&n, idx))
-            .id();
+        let ui_anchor = commands.spawn(entity_display_item(&n, idx)).id();
         commands
             .entity(src.event_target())
             .add_children(&[trash, up_chev, down_chev, ui_anchor]);
@@ -185,7 +187,7 @@ fn children_header(
                     height: px(14.),
                     ..default()
                 },
-                ImageNodeSansHandle::from_path("lucide/search-white.png".to_owned()),
+                IconImage::from_path("lucide/search-white.png".to_owned()),
                 observe(
                     move |_: On<Pointer<Click>>, _world: DeferredWorld, mut commands: Commands| {
                         commands.trigger(EntitySelectionRequest {
@@ -202,7 +204,7 @@ fn children_header(
                     height: px(14.),
                     ..default()
                 },
-                ImageNodeSansHandle::from_path("lucide/package-plus-white.png".to_owned()),
+                IconImage::from_path("lucide/package-plus-white.png".to_owned()),
                 observe(
                     move |_: On<Pointer<Click>>, _world: DeferredWorld, mut commands: Commands| {
                         //TODO - implement a real entity generation function
@@ -331,15 +333,13 @@ fn in_which_we_spawn_our_entity_selector(
     //some scrolling layout container
     // TODO - actually make this scroll dude come on now
     let item_layout = commands
-        .spawn(
-            Node {
-                display: Display::Grid,
-                grid_row: GridPlacement::start(2),
-                grid_auto_flow: GridAutoFlow::Row,
-                grid_auto_rows: vec![GridTrack::px(FontSize::Normal.float() + 2.)],
-                ..default()
-            },
-        )
+        .spawn(Node {
+            display: Display::Grid,
+            grid_row: GridPlacement::start(2),
+            grid_auto_flow: GridAutoFlow::Row,
+            grid_auto_rows: vec![GridTrack::px(FontSize::Normal.float() + 2.)],
+            ..default()
+        })
         .id();
     commands.entity(popup).add_child(item_layout);
     commands.entity(*global_root).add_child(popup);

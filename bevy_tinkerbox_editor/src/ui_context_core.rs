@@ -17,21 +17,11 @@ use bevy::{
 };
 
 use crate::{
-    ComponentUiFor, ImageNodeSansHandle, UpdateComponentFieldValue,
-    WorldRequiredComponentExtension,
     editor_override_traits::{
         ReflectEditorFieldUI, ReflectEditorHeaderUI, ReflectEditorPerFieldUI,
-    },
-    instantiate_or_die,
-    theme::{local_text::FontSize, local_tokens},
-    view_only_component,
-    widgets::{
-        component_browser::ComponentSelection,
-        field_input::{dynamic_value_input_field, input_field_error},
-        general::{CloseEvent, CloseRoot},
-        scene_actions::ComponentInstantiation,
-        view_only_component::RideAlongComponent,
-    },
+    }, instantiate_or_die, theme::{local_text::FontSize, local_tokens}, view_only_component, widgets::{
+        component_browser::ComponentSelection, field_input::{dynamic_value_input_field, input_field_error}, general::{CloseEvent, CloseRoot}, icons::IconImage, scene_actions::ComponentInstantiation, view_only_component::RideAlongComponent
+    }, ComponentUiFor, UpdateComponentFieldValue, WorldRequiredComponentExtension
 };
 
 pub(super) fn plugin(app: &mut App) {
@@ -1055,7 +1045,7 @@ fn component_title(name: impl Into<String>) -> impl Bundle {
                     height: px(12.),
                     ..default()
                 },
-                ImageNodeSansHandle {
+                IconImage {
                     path_to_image: "lucide/trash-2-white.png".to_owned(),
                     color: Color::from(Srgba::RED),
                     ..default()
@@ -1268,7 +1258,7 @@ fn list_header(
                     height: px(14.),
                     ..default()
                 },
-                ImageNodeSansHandle::from_path("lucide/package-plus-white.png".to_owned()),
+                IconImage::from_path("lucide/package-plus-white.png".to_owned()),
                 observe(
                     move |_: On<Pointer<Click>>, world: DeferredWorld, mut commands: Commands| {
                         let app_registry = world.resource::<AppTypeRegistry>();

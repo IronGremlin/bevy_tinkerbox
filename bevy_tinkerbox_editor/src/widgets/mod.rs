@@ -6,6 +6,7 @@ pub mod field_input;
 pub mod general;
 pub mod scene_actions;
 pub mod view_only_component;
+pub mod icons;
 
 pub(super) fn plugin(app: &mut App) {
     app.add_plugins((

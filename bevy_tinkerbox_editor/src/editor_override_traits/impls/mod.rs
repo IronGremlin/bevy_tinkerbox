@@ -1,9 +1,7 @@
 use crate::{
-    FieldAccessPath, ImageNodeSansHandle, RefreshInputFields, UpdateComponentFieldValue,
     editor_override_traits::{
         EditorFieldUI, ReflectEditorFieldUI, ReflectEditorHeaderUI, ReflectEditorPerFieldUI,
-    },
-    ui_context_core::{ComponentUiStepContext, UiCtxt, field_layout},
+    }, ui_context_core::{field_layout, ComponentUiStepContext, UiCtxt}, widgets::icons::IconImage, FieldAccessPath, RefreshInputFields, UpdateComponentFieldValue
 };
 use bevy::{
     asset::io::file::FileAssetReader,
@@ -231,7 +229,7 @@ impl EditorFieldUI for Handle<Image> {
                         border: UiRect::all(px(1.)),
                         ..default()
                     },
-                    ImageNodeSansHandle::from_path("lucide/folder-white.png".to_owned()),
+                    IconImage::from_path("lucide/folder-white.png".to_owned()),
                     BorderColor::all(Srgba::WHITE),
                     observe(move |_: On<Pointer<Click>>, mut s_commands: Commands| {
                         s_commands
