@@ -1,5 +1,5 @@
 use bevy::{
-    ecs::{entity::EntityHashSet, relationship::RelationshipSourceCollection},
+    ecs::{entity::EntityHashSet, query::QueryData, relationship::RelationshipSourceCollection},
     feathers::theme::{ThemeBackgroundColor, ThemeBorderColor},
     platform::collections::HashSet,
     prelude::*,
@@ -7,9 +7,12 @@ use bevy::{
 };
 
 use crate::{
-    theme::{local_text::FontSize, local_tokens}, ui_context_core::{SelectedEntityUiRoot, WorldTarget}, widgets::component_browser::{
-        component_browser_widget, ComponentBrowserOpenRequest, ComponentBrowserWidgetRoot
-    }, ComponentUiFor, ComponentUisFor, EntityUiRoot, ImageNodeSansHandle
+    ComponentUiFor, ComponentUisFor, EntityUiRoot, ImageNodeSansHandle,
+    theme::{local_text::FontSize, local_tokens},
+    ui_context_core::{SelectedEntityUiRoot, WorldTarget},
+    widgets::component_browser::{
+        ComponentBrowserOpenRequest, ComponentBrowserWidgetRoot, component_browser_widget,
+    },
 };
 
 pub(super) fn plugin(app: &mut App) {
@@ -155,7 +158,7 @@ pub struct RemoveEntity {
 fn handle_despawn_request(
     src: On<RemoveEntity>,
     uis: Query<&ComponentUisFor>,
-    sans_node: Query<Entity, (With<ComponentUiFor>,Without<Node>)>,
+    sans_node: Query<Entity, (With<ComponentUiFor>, Without<Node>)>,
     mut commands: Commands,
 ) {
     let mut dead_letter_queue = EntityHashSet::new();
@@ -184,18 +187,34 @@ struct EntityNamePlate;
 //TODO - We should handle name removal too.
 fn name_plate_update(
     mut name_plates: Query<&mut Text, With<EntityNamePlate>>,
-    names_we_care_about: Query<(Entity, &Name, &WorldTarget), Changed<Name>>,
+    names_we_care_about: Query<NamedWorldTarget, Changed<Name>>,
     kids: Query<&Children>,
 ) {
-    for (named, name, world_target) in names_we_care_about.iter() {
-        for desc in kids.iter_descendants(world_target.ui_root()) {
+    for named_world_target in names_we_care_about.iter() {
+        for desc in kids.iter_descendants(named_world_target.ui_root()) {
             if let Ok(mut plate) = name_plates.get_mut(desc) {
-                plate.0 = if !name.is_empty() {
-                    format!("{} : Entity({:?})", name, named)
-                } else {
-                    format!("Entity({:?})", named)
-                }
+                plate.0 = named_world_target.name_plate()
             }
-        }   
+        }
+    }
+}
+
+#[derive(QueryData)]
+pub struct NamedWorldTarget {
+    entity: Entity,
+    name: Option<&'static Name>,
+    world_target: &'static WorldTarget,
+}
+impl<'w, 's> NamedWorldTargetItem<'w, 's> {
+    pub fn id(&self) -> Entity {
+        self.entity
+    }
+    pub fn name_plate(&self) -> String {
+        self.name
+            .map(|n| format!("{} : Entity({:?})", n, self.entity))
+            .unwrap_or(format!("Entity({:?})", self.entity))
+    }
+    pub fn ui_root(&self) -> Entity {
+        self.world_target.ui_root()
     }
 }

@@ -10,6 +10,7 @@ pub(super) fn plugin(app: &mut App) {
     app.add_systems(PreUpdate, (asset_watcher, load_resource_assets));
 }
 
+#[allow(unused)]
 pub trait LoadResource {
     /// This will load the [`Resource`] as an [`Asset`]. When all of its asset dependencies
     /// have been loaded, it will be inserted as a resource. This ensures that the resource only
@@ -50,6 +51,7 @@ impl LoadResource for App {
 struct PendingAsset(pub UntypedHandle);
 
 #[derive(EntityEvent, Clone)]
+#[allow(unused)]
 struct TypeErasedAssetLoadedEvent {
     entity: Entity,
     handle: UntypedHandle,

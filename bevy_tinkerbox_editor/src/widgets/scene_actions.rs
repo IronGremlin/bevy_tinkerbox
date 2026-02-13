@@ -35,10 +35,8 @@ fn scene_save(src: On<SaveScene>, world: DeferredWorld) {
     let type_registry = world.resource::<AppTypeRegistry>();
     let proxy_registry = world.resource::<SerializationProxies>();
 
-    let mut tiny_world = World::new();
-    tiny_world.insert_resource(type_registry.clone());
-    let mut mapper = EntityHashMap::<Entity>::new();
     let mut aggregate: HashSet<TypeId> = HashSet::new();
+    let mut scene_targets: HashSet<Entity> =  HashSet::new();
 
     ui_roots.iter(&world).for_each(|ui_root| {
         let desired_serialization_components: HashSet<TypeId> = ui_root
@@ -57,21 +55,14 @@ fn scene_save(src: On<SaveScene>, world: DeferredWorld) {
         for x in desired_serialization_components.iter() {
             aggregate.insert(x.clone());
         }
-
-        let smol_scene = DynamicSceneBuilder::from_world(&*world)
-            .with_component_filter(SceneFilter::Allowlist(desired_serialization_components))
-            .extract_entity(ui_root.world_target)
-            .build();
-        let r =
-            smol_scene.write_to_world_with(&mut tiny_world, &mut mapper, &type_registry.clone());
-        if r.is_err() {
-            info!("{:?}", r);
-        }
+        scene_targets.insert(ui_root.world_target);
     });
-    let big_scene = DynamicSceneBuilder::from_world(&tiny_world)
+
+
+    let big_scene = DynamicSceneBuilder::from_world(&world)
         .with_component_filter(SceneFilter::Allowlist(aggregate))
         .deny_all_resources()
-        .extract_entities(mapper.iter().map(|(_k, v)| *v))
+        .extract_entities(scene_targets.iter().map(|x|*x))
         .build();
 
     for ent in big_scene.entities.iter() {
@@ -94,12 +85,19 @@ fn scene_bounce(
     let Ok(anchor) = find_anchor.single() else {
         return;
     };
+    let mut mapper = EntityHashMap::<(Entity, Entity)>::new();
     let dyn_scene = scenes
         .get(src.handle.id())
         .expect("Dynamic scene asset failed to exist");
+    // We need to pre-populate our scene entities so that we can be order agnostic when instantiating relationship components.
     for dyn_entity in dyn_scene.entities.iter() {
         let world_target = commands.spawn_empty().id();
         let new_entity_ui = commands.spawn_empty().id();
+        mapper.insert(dyn_entity.entity, (world_target, new_entity_ui));
+    }
+    for dyn_entity in dyn_scene.entities.iter() {
+        let &(world_target, new_entity_ui) = mapper.get(&(dyn_entity.entity)).unwrap();
+
         commands.entity(anchor).add_child(new_entity_ui);
         commands
             .entity(new_entity_ui)
@@ -112,11 +110,23 @@ fn scene_bounce(
             let og_tid = og_tinfo.type_id().clone();
             let type_id = proxies.get_target(og_tinfo.type_path()).unwrap_or(&og_tid);
 
-            commands.entity(world_target).insert_reflect(
-                box_component
-                    .reflect_clone()
-                    .expect("Failed to clone component"),
-            );
+            //TODO - find a way to generalize this for arbitrary relations.
+            // Hypothetically we should be able to register reflected relations traits?
+            if *type_id == TypeId::of::<Children>() {
+                //                info!("Children({:?}), ChildOf({:?})", TypeId::of::<Children>(),TypeId::of::<ChildOf>());
+                let aref: &Children = box_component.try_downcast_ref::<Children>().unwrap();
+                for fake_target in aref.iter() {
+                    let real_target = mapper.get(&fake_target).unwrap().0;
+                    commands.entity(world_target).add_child(real_target);
+                }
+            } else {
+                commands.entity(world_target).insert_reflect(
+                    box_component
+                        .reflect_clone()
+                        .expect("Failed to clone component"),
+                );
+            }
+
             commands.trigger(ComponentInstantiation {
                 entity: new_entity_ui,
                 type_id: type_id.clone(),

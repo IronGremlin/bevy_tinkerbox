@@ -104,7 +104,8 @@ fn editor_initialization(
 }
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
 pub struct EditorConstructionSet;
-
+#[derive(Component)]
+pub struct EditorUiScreenRoot;
 pub fn spawn_editor(
     mut commands: Commands,
     //TODO - Fix this
@@ -123,6 +124,7 @@ pub fn spawn_editor(
             row_gap: px(6),
             ..Default::default()
         },
+	EditorUiScreenRoot,
         BackgroundColor(Color::NONE),
         //Whoa man do NOT forget to do this or you'll have a real bad time lmao
         Pickable {

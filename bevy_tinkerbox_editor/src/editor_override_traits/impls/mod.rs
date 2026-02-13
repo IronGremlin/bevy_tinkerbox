@@ -1,8 +1,7 @@
 use crate::{
     FieldAccessPath, ImageNodeSansHandle, RefreshInputFields, UpdateComponentFieldValue,
     editor_override_traits::{
-        EditorFieldUI, EditorPerFieldUI, ReflectEditorFieldUI, ReflectEditorHeaderUI,
-        ReflectEditorPerFieldUI,
+        EditorFieldUI, ReflectEditorFieldUI, ReflectEditorHeaderUI, ReflectEditorPerFieldUI,
     },
     ui_context_core::{ComponentUiStepContext, UiCtxt, field_layout},
 };
@@ -16,6 +15,7 @@ use bevy::{
     ui_widgets::{ValueChange, checkbox_self_update, observe},
 };
 use bevy_file_dialog::{EntityFileDialogExt, EntityScopedDialogEvent};
+pub mod children;
 pub mod sprite;
 pub mod transform;
 pub(super) fn plugin(app: &mut App) {
@@ -35,14 +35,14 @@ fn manually_registering_trait_data_for_fun_and_profit(reg: ResMut<AppTypeRegistr
     registry.register_type_data::<Transform, ReflectEditorPerFieldUI>();
     registry.register_type_data::<Transform, ReflectEditorHeaderUI>();
     registry.register_type_data::<Name, ReflectEditorFieldUI>();
+    registry.register_type_data::<Children, ReflectEditorFieldUI>();
     registry.register_type_data::<Sprite, ReflectEditorPerFieldUI>();
 }
 
 impl EditorFieldUI for Name {
     fn construct_field_ui(&self, ctxt: &UiCtxt, commands: &mut Commands) {
-        // let field_layout = commands.spawn(field_layout()).id();
-        // commands.entity(ctxt.ui_anchor()).add_child(field_layout);
         commands.entity(ctxt.ui_anchor()).insert(field_layout());
+
         let name_struct_info = ctxt.value_type_info().as_struct().unwrap();
         let name_field_info = name_struct_info
             .field("name")

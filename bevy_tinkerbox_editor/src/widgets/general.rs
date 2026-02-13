@@ -20,10 +20,7 @@ use bevy_ui_text_input::{
 };
 
 use crate::{
-    theme::{
-        local_text::FontSize,
-        local_tokens,
-    },
+    theme::{self, local_text::FontSize, local_tokens},
     widgets::field_input::ValueInputOutput,
 };
 
@@ -187,6 +184,14 @@ fn watch_for_close(mut src: On<CloseEvent>, stop: Query<Has<CloseRoot>>, mut com
 pub struct HoverBackground {
     pub over: ThemeToken,
     pub out: ThemeToken,
+}
+impl HoverBackground {
+    pub fn item() -> HoverBackground {
+        HoverBackground {
+            over: theme::local_tokens::ITEM_ACTIVE,
+            out: theme::local_tokens::ITEM_BG,
+        }
+    }
 }
 fn on_add_over_background(mut world: DeferredWorld, context: HookContext) {
     let theme = world.resource::<UiTheme>();
