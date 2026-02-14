@@ -18,7 +18,7 @@ pub mod sprite;
 pub mod transform;
 pub(super) fn plugin(app: &mut App) {
     app.add_plugins(MeshPickingPlugin);
-    app.add_plugins((transform::plugin, sprite::plugin));
+    app.add_plugins((transform::plugin, sprite::plugin, children::plugin));
 
     app.add_systems(
         PreStartup,

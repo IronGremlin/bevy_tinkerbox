@@ -6,16 +6,19 @@ use bevy::{
 };
 
 use crate::{
-    EditorUiScreenRoot,
-    editor_override_traits::EditorFieldUI,
-    theme::{self, local_text::FontSize, local_tokens},
-    ui_context_core::{RefreshInputFields, UiCtxt},
-    widgets::{
+    editor_override_traits::EditorFieldUI, theme::{self, local_text::FontSize, local_tokens}, ui_context_core::{RefreshInputFields, UiCtxt, WorldTarget}, widgets::{
         add_entity_button::{NamedWorldTarget, NamedWorldTargetItem},
         general::{CloseEvent, CloseRoot, HoverBackground},
         icons::IconImage,
-    },
+    }, EditorUiScreenRoot
 };
+
+pub(super) fn plugin(app: &mut App) {
+    app.add_observer(watch_orphans);
+    app.add_systems(Update, watch_child_ordering);
+    //TODO - this should probably live elsewhere someday
+    app.add_observer(orphan_maker);
+}
 
 #[derive(Component)]
 struct OurTarget(pub Entity);
@@ -101,6 +104,7 @@ fn children_on_refresh(
                     grid_column: GridPlacement::start(1),
                     ..default()
                 },
+                click_me_to_get_sad(n.id()),
                 IconImage {
                     color: Color::from(Srgba::RED),
                     ..IconImage::from_path("lucide/trash-2-white.png".to_owned())
@@ -360,4 +364,50 @@ fn entity_selection_handler(target_parent: Entity, ui_parent: Entity) -> impl Bu
             });
         },
     )
+}
+/// [EntityEvent] which triggers removal of ChildOf relation from it's target.
+#[derive(EntityEvent)]
+pub struct OrphanMe {
+    entity: Entity,
+}
+
+fn orphan_maker(src: On<OrphanMe>, mut commands: Commands) {
+    commands.entity(src.event_target()).try_remove::<ChildOf>();
+}
+
+fn click_me_to_get_sad(entity: Entity) -> impl Bundle {
+    observe(move |_src: On<Pointer<Click>>, mut commands: Commands| {
+        commands.trigger(OrphanMe { entity });
+    })
+}
+// This should catch any change in relation we would care about?
+// Does have the potential downside of n-tapping us when Children is removed.
+fn watch_orphans(
+    src: On<Replace, ChildOf>,
+    // We should early out on anything that's not a WorldTarget.
+    // Also in theory all of our dads also have WorldTarget? I hope?
+    childs_of: Query<&ChildOf, With<WorldTarget>>,
+    targets: Query<(Entity, &OurTarget)>,
+    mut commands: Commands,
+) {
+    if let Ok(og_pops) = childs_of.get(src.event_target()) {
+        //This definitely slower than we have to be, but it shouldn't get -too- crazy...
+        // I hope?
+        for (component_ui_root, OurTarget(target)) in targets.iter() {
+            if og_pops.0 == *target {
+                commands.trigger(RefreshInputFields { component_ui_root });
+                break;
+            }
+        }
+    }
+}
+fn watch_child_ordering(those_whove_shifted: Query<Entity, (Changed<Children>, With<WorldTarget>)>, targets: Query<(Entity, &OurTarget)>, mut commands: Commands) {
+    for world_target in those_whove_shifted.iter() {
+        for (component_ui_root, OurTarget(target)) in targets.iter() {
+            if world_target == *target {
+                commands.trigger(RefreshInputFields { component_ui_root });
+                break;
+            }
+        }
+    }    
 }
