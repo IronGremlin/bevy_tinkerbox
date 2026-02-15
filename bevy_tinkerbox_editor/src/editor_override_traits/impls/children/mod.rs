@@ -90,9 +90,10 @@ fn children_on_refresh(
         .get(src.event_target())
         .and_then(|OurTarget(x)| children.get(*x))
         .map(|x| x.iter().filter_map(|n| named_world_targets.get(n).ok()))
+        .map(|n| n.collect::<Vec<NamedWorldTargetItem>>())
         .expect("failed to retrieve child entities");
-
-    for (i, n) in shadow_list.enumerate() {
+    let max_idx = shadow_list.len() - 1;
+    for (i, n) in shadow_list.iter().enumerate() {
         let idx: i16 = i.try_into().unwrap();
         let trash = commands
             .spawn((
@@ -124,6 +125,9 @@ fn children_on_refresh(
                 IconImage::from_path("lucide/chevron-up-white.png".to_owned()),
             ))
             .id();
+        if i != 0 {
+            commands.entity(up_chev).insert(list_item_order_button_menu(n.id(), i, true));
+        }
         let down_chev = commands
             .spawn((
                 Node {
@@ -137,12 +141,29 @@ fn children_on_refresh(
                 IconImage::from_path("lucide/chevron-down-white.png".to_owned()),
             ))
             .id();
+         if i != max_idx {
+             commands.entity(down_chev).insert(list_item_order_button_menu(n.id(), i, false));
+        }
         let ui_anchor = commands.spawn(entity_display_item(&n, idx)).id();
         commands
             .entity(src.event_target())
             .add_children(&[trash, up_chev, down_chev, ui_anchor]);
     }
 }
+fn list_item_order_button_menu(world_target: Entity, idx: usize, promote: bool) -> impl Bundle {
+    observe(move |_src: On<Pointer<Click>>,dads: Query<&ChildOf>, mut commands: Commands| {
+        if let Ok(dad) = dads.get(world_target) {
+            commands.entity(dad.0).entry::<Children>().and_modify(move |mut kids| {
+                if promote {
+                    kids.swap(idx, idx -1);
+                } else {
+                    kids.swap(idx, idx +1);
+                }
+            });
+        }
+    })
+}
+
 fn children_header(
     ui_layout: Entity,
     world_target: Entity,
