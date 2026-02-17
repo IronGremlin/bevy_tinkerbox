@@ -2,6 +2,8 @@ use ::bevy::prelude::*;
 use bevy::{
     asset::RenderAssetUsages,
     camera::{RenderTarget, visibility::RenderLayers},
+    ecs::{lifecycle::HookContext, world::DeferredWorld},
+    feathers::theme::{ThemeBackgroundColor, ThemeBorderColor},
     render::render_resource::{TextureDimension, TextureFormat, TextureUsages},
     sprite::Anchor,
     ui_widgets::observe,
@@ -11,13 +13,14 @@ use crate::{
     asset_extensions::editor_assets::AssortedIcons,
     drag_snap::{DragSnapState2d, SnapDrag, SnapDragEnd, WorldSnap2dGrid},
     editor_override_traits::{EditorPerFieldUI, impls::sprite::texture_atlas_layout::GridArgs},
-    theme::local_text::FontSize,
+    theme::{local_text::FontSize, local_tokens},
     ui_context_core::UiCtxt,
     widgets::{
         field_input::{ValueInputInput, ValueInputOutput, concrete_value_input_field},
         general::{
             FormControl, FormControlSubject, FormDataChanged, FormElement, FormElementMarker,
         },
+        icons::IconImage,
     },
 };
 
@@ -31,6 +34,7 @@ pub(super) fn plugin(app: &mut App) {
         (
             taw_update_cascade,
             texture_atlas_draggables,
+            bounded_2d_camera,
             render_texture_atlas_cells,
         )
             .chain(),
@@ -133,17 +137,6 @@ fn initialize_texture_atlas_layout_ui(
         RenderLayers::layer(1),
         DespawnOnExit(TALWindowStatus::Open),
     ));
-    commands.spawn((
-        Sprite {
-            image: icons.checker_board.clone(),
-            rect: Some(Rect::from_center_size(Vec2::ZERO, size_of_image.as_vec2())),
-            ..default()
-        },
-        Anchor(Vec2::new(1., 1.) * -0.5),
-        Transform::from_xyz(0., 0., 0.),
-        RenderLayers::layer(1),
-        DespawnOnExit(TALWindowStatus::Open),
-    ));
 
     let cam = commands
         .spawn((
@@ -153,25 +146,49 @@ fn initialize_texture_atlas_layout_ui(
                 ..default()
             },
             RenderTarget::Image(camera_canvas.clone().into()),
+            Camera2dBounds {
+                bounds: Rect::from_center_size(
+                    size_of_image.as_vec2() * 0.5,
+                    size_of_image.as_vec2(),
+                ),
+                margin: size_of_image.as_vec2() * 0.25,
+                scale_min: 0.005,
+                scale_max: 50.,
+            },
             Transform::from_scale(Vec2::splat(0.25).extend(1.))
                 .with_translation((0.5 * size_of_image.as_vec2()).extend(1.)),
             RenderLayers::layer(1),
             DespawnOnExit(TALWindowStatus::Open),
         ))
         .id();
+    //TODO - there's a bug here where picking isn't interacting appropriately with the tiled
+    //image - co-ordinates to the right of center won't test as being hit. I think.
+    // Need to make a minimal repro and open a bug report.
+    commands.spawn((
+        Sprite {
+            image: icons.checker_board.clone(),
+            rect: Some(Rect::from_center_size(Vec2::ZERO, size_of_image.as_vec2())),
+            ..default()
+        },
+        Pickable::default(),
+        DragMeToPan(cam),
+//        Anchor(Vec2::new(1., 1.) * -0.5),
+        Transform::from_translation((size_of_image.as_vec2() * 0.5).extend(1.)),
+        RenderLayers::layer(1),
+        DespawnOnExit(TALWindowStatus::Open),
+    ));
+
     let gargs_holder = commands
         .spawn((
             Node {
                 display: Display::Grid,
                 min_width: vmax(50.),
-                max_width: percent(100.),
-                height: vmin(50.),
                 border: UiRect::all(px(4.)),
                 justify_content: JustifyContent::Center,
                 ..default()
             },
-            BorderColor::all(Color::from(Srgba::WHITE)),
-            BackgroundColor::from(Srgba::BLACK),
+            ThemeBorderColor(local_tokens::PANE_BORDER),
+            ThemeBackgroundColor(local_tokens::PANE_BG),
             FormControlSubject,
             initial_grid_args,
             DespawnOnExit(TALWindowStatus::Open),
@@ -234,7 +251,7 @@ fn initialize_texture_atlas_layout_ui(
                 ],
                 ..default()
             },
-            BackgroundColor::from(Srgba::BLUE),
+            ThemeBackgroundColor(local_tokens::ITEM_BG),
             children![
                 (
                     Node {
@@ -252,8 +269,12 @@ fn initialize_texture_atlas_layout_ui(
                         border: UiRect::all(px(2.)),
                         ..default()
                     },
-                    BackgroundColor::from(Srgba::RED),
-                    BorderColor::all(Srgba::WHITE),
+                    IconImage {
+                        color: Color::from(Srgba::BLACK),
+                        ..IconImage::from_path("lucide/x-white.png".to_owned())
+                    },
+                    ThemeBorderColor(local_tokens::PANE_BORDER),
+                    ThemeBackgroundColor(local_tokens::WARNING_PRIMARY),
                     observe(make_close_tal_ui(src.event_target(), gargs_holder))
                 )
             ],
@@ -266,7 +287,7 @@ fn initialize_texture_atlas_layout_ui(
                 border: UiRect::all(px(3.)),
                 ..default()
             },
-            BorderColor::all(Color::from(Srgba::BLUE)),
+            ThemeBorderColor(local_tokens::SLIDER_ACTIVE),
             Pickable {
                 should_block_lower: false,
                 ..default()
@@ -608,8 +629,8 @@ fn texture_atlas_preview_ui_bundle(args: texture_atlas_layout::GridArgs) -> impl
                 padding: UiRect::horizontal(px(2.)),
                 ..default()
             },
-            BorderColor::from(Srgba::WHITE),
-            BackgroundColor(Srgba::hex("#46474d").unwrap_or(Srgba::WHITE).into()),
+            ThemeBorderColor(local_tokens::PANE_BORDER),
+            ThemeBackgroundColor(local_tokens::PANE_BG),
             children![(
                 match key {
                     CellSizeX => concrete_value_input_field(gargs.cell_size.x),
@@ -886,4 +907,113 @@ pub mod texture_atlas_layout {
             assert_eq!(GridArgs::default(), gargs2);
         }
     }
+}
+
+
+//TODO -  An image would help this make sense but I'm too lazy to do that right now.
+/// Sets the maximum world-space co-ordinates and zoom level for a 2d camera.
+///
+/// The co-ordinate space that must stay within view of the camera is described
+/// as a rectangular region inset vertically and horizontally from the supplied "bounds"
+/// by the supplied "margin."
+///
+/// If we think of the "bounds" as a rectangular subject that must stay within view of the camera,
+/// the "margin" describes "by how much" - a vertical margin of 15 units means at least 15 units
+/// of the rectangular bounds will be on the top or bottom edge of the screen as the camera attempts to
+/// scroll up or down.
+///
+#[derive(Component, Clone, Debug, PartialEq)]
+pub struct Camera2dBounds {
+    /// The world-space co-ordinates that must stay in view of the camera.
+    pub bounds: Rect,
+    /// The minimum allowed scale value for the camera
+    pub scale_min: f32,
+    /// The maximum allowed scale value for the camera    
+    pub scale_max: f32,
+    /// The vertical and horizonal "thickness" of the region that
+    /// will stay in view
+    pub margin: Vec2,
+}
+
+fn bounded_2d_camera(
+    mut cameras: Query<
+        (&Camera, &GlobalTransform, &Camera2dBounds, &mut Transform),
+        (With<Camera2d>),
+    >,
+) {
+    for (cam, gt, bounds, mut transform) in cameras.iter_mut() {
+        // Apologies for anyone who wanted to have a non-uniform scale on their editor camera.
+        let scale = transform
+            .scale
+            .x
+            .min(transform.scale.y)
+            .clamp(bounds.scale_min, bounds.scale_max);
+        transform.scale = Vec2::splat(scale).extend(1.);
+
+        // NDC are weird but I -think- I've got this right?
+        let Some(top_left) = cam.ndc_to_world(gt, (-1., 1., 0.5)) else {
+            return;
+        };
+        let Some(bottom_right) = cam.ndc_to_world(gt, (1., -1., 0.5)) else {
+            return;
+        };
+        let derived_bounds = Rect::from_corners(
+            Vec2::new(
+                bounds.bounds.min.x + bounds.margin.x,
+                bounds.bounds.max.y - bounds.margin.y,
+            ),
+            Vec2::new(
+                bounds.bounds.max.x - bounds.margin.x,
+                bounds.bounds.min.y + bounds.margin.y,
+            ),
+        );
+
+        if bottom_right.0 < derived_bounds.min.x {
+            transform.translation.x =
+                transform.translation.x + (derived_bounds.min.x - bottom_right.0);
+        }
+        if bottom_right.1 > derived_bounds.max.y {
+            transform.translation.y =
+                transform.translation.y - (bottom_right.1 - derived_bounds.max.y);
+        }
+        if top_left.0 > derived_bounds.max.x {
+            transform.translation.x = transform.translation.x - (top_left.0 - derived_bounds.max.x);
+        }
+        if top_left.1 < derived_bounds.min.y {
+            transform.translation.y = transform.translation.y + (derived_bounds.min.y - top_left.1);
+        }
+    }
+}
+
+/// Adding this component to a pickable entity will cause drag events to move the supplied 2d camera.
+///
+/// If the supplied entity is not a 2d camera, this will instead do nothing.
+///
+/// Camera enthuisasts might note that the resulting movement is, in no way at all, a
+/// "panning" of the camera, however literally everyone else will understand exactly what
+/// this means.
+///
+/// I am sorry. To be educated is to be cursed.
+///
+#[derive(Component)]
+#[component(on_add=drag_for_camera_movement)]
+pub struct DragMeToPan(pub Entity);
+
+fn drag_for_camera_movement(mut world: DeferredWorld, context: HookContext) {
+    let Some(DragMeToPan(c)) = world.entity(context.entity).get::<DragMeToPan>() else {
+        return;
+    };
+    let camera = *c;
+    
+
+    world.commands().entity(context.entity).insert(observe(
+        move |src: On<Pointer<Drag>>,
+              mut cameras: Query<&mut Transform, (With<Camera>, With<Camera2d>)>| {
+            let Ok(mut transform) = cameras.get_mut(camera) else {
+                return;
+            };
+            transform.translation = transform.translation
+                + (src.event().delta * transform.scale.x * Vec2::new(-1., 1.)).extend(0.0);
+        },
+    ));
 }
