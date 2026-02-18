@@ -1,3 +1,4 @@
+/// Utilities to better allow scene (de)serialization for scenes containing [Sprite]s.
 use bevy::{
     asset::AssetPath,
     ecs::world::DeferredWorld,
@@ -12,15 +13,29 @@ pub(super) fn plugin(app: &mut App) {
     app.add_systems(Update, sprite_stalker);
 }
 
+/// A serialization proxy for [Sprite].
+///
+/// Due to the dependence on multiple asset types, [Sprite] does not gracefully (de)serialize without some additional legwork.
+/// We resolve that here by defining a more serialization friendly representation for some fields. Work remains to generalize this concept to
+/// other asset types.
+///
 #[derive(Clone, Component, Reflect, Serialize)]
 #[reflect(Component, Serialize, Default)]
 pub struct SpriteShadow {
+    /// The path to the image for this sprite.
     pub image: AssetPath<'static>,
+    /// We bypass the asset store for our texture atlas. This unfortunately prevents serialized sprites from
+    /// sharing TextureAtlas handles.
     pub texture_atlas: Option<(usize, TextureAtlasLayout)>,
+    /// As in [Sprite]
     pub color: Color,
+    /// As in [Sprite]
     pub flip_x: bool,
+    /// As in [Sprite]
     pub flip_y: bool,
+    /// As in [Sprite]
     pub custom_size: Option<Vec2>,
+    /// As in [Sprite]
     pub rect: Option<Rect>,
 }
 impl SpriteShadow {

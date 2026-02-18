@@ -1,3 +1,5 @@
+/// A collection of Bevy Feathers inspired theme tokens and related resources and functions.
+
 use bevy::{
     app::App,
     color::Luminance,
@@ -8,6 +10,7 @@ use bevy::{
 
 use crate::LoadingStatus;
 
+/// Project local theme tokens.
 pub mod local_tokens {
     use bevy::feathers::theme::ThemeToken;
 
@@ -20,6 +23,7 @@ pub mod local_tokens {
     pub const SLIDER_ACTIVE: ThemeToken = ThemeToken::new_static("local.slider_inactive");
 }
 
+/// Project font sizes.
 pub mod local_text {
 
     use bevy::text::TextFont;
@@ -27,7 +31,8 @@ pub mod local_text {
     pub const BIG_FONT_SIZE: f32 = 18.0;
     pub const MED_FONT_SIZE: f32 = 16.0;
     pub const FONT_SIZE: f32 = 12.0;
-
+    
+    /// Enum describing expected font sized categories.
     #[derive(Default, Copy, Clone)]
     pub enum FontSize {
         Big,
@@ -36,9 +41,14 @@ pub mod local_text {
         Normal,
     }
     impl FontSize {
+        /// Default text font at the appropriate size.
         pub fn font(self) -> TextFont {
             TextFont::from_font_size(self.float())
         }
+        /// The size of our fonts.
+        ///
+        /// The editor sometimes also derives UI element sizes based on these values.
+        ///
         pub fn float(self) -> f32 {
             match self {
                 FontSize::Big => BIG_FONT_SIZE,

@@ -1,3 +1,4 @@
+/// A collection of Asset system extensions to better support scene editing and editor asset loading.
 use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 
@@ -21,8 +22,9 @@ pub(super) fn plugin(app: &mut App) {
         editor_assets::plugin,
     ));
 }
-
+/// An extension trait enabling scene serialization and related file IO.
 pub trait AssetServerSaveExtension {
+    /// Save a [DynamicScene] to a given file path.
     fn save_dynamic_scene(path: &Path, type_registry: &AppTypeRegistry, asset: DynamicScene);
 }
 impl AssetServerSaveExtension for AssetServer {
@@ -41,7 +43,11 @@ impl AssetServerSaveExtension for AssetServer {
             .detach();
     }
 }
-
+/// Struct supporting proxy types for scene serde.
+/// Especially useful to support dependent asset initialization - EG, how to go from a file path to a `Handle<Image>` or similar.
+///
+/// See [SpriteShadow] for a simple motivating use-case.
+///
 #[derive(Resource)]
 pub struct SerializationProxies {
     proxies_by_target: HashMap<TypeId, TypeId>,

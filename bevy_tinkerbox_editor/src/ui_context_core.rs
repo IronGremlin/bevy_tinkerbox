@@ -1,3 +1,10 @@
+/// Core UI generation logic.
+///
+/// This module owns creation and anchoring of UI elements for the components of edited scene entities.
+///
+/// It owns the auto-generation of Reflection derived Component UIs as well as dispatching to custom
+/// UI overrides.
+
 use std::any::TypeId;
 
 use ::bevy::prelude::*;
@@ -29,7 +36,10 @@ pub(super) fn plugin(app: &mut App) {
     app.add_observer(component_ui_initializer);
     app.add_observer(scene_component_ui_instantiator);
 }
-
+/// Observer function for adding a manually selected component to a scene entity.
+/// Handles 'active' vs. 'ride-along' Component state.
+/// In order to 'wait a tick' for deferred edits to that state to exist, we defer the
+/// actual UI element creation to another handler.
 pub(crate) fn root(source: On<ComponentSelection>, dworld: DeferredWorld, mut commands: Commands) {
     let window_root = source.event_target();
 
@@ -186,20 +196,27 @@ fn scene_component_ui_instantiator(
 
 //TODO - At the very least we should work on some of the nomenclature here.
 //
+/// This event initializes the creation of a component UI for a given edited scene entity.
 #[derive(EntityEvent)]
 pub(crate) struct UiRequestedFor {
+    /// The UI Node that will anchor the generated Component UI
     #[event_target]
     pub component_ui_root: Entity,
+    /// The entity in the scene that the Component UI will be associated with
     pub world_target: Entity,
+    /// The type registration for the Component
     pub component_type_registration: TypeRegistration,
 }
 
+/// This event signals that there is new state 'in the world' waiting to be reflected in the UI.
 #[derive(EntityEvent)]
 pub(crate) struct RefreshInputFields {
+    /// The element in the UI that has new state it may wish to reflect.
     #[event_target]
     pub component_ui_root: Entity,
 }
-
+/// The observer function responsible for creating the [UiCtxt] and initializing the root Component
+/// card for a given UI.
 pub(crate) fn component_ui_initializer(
     source: On<UiRequestedFor>,
     world: DeferredWorld,
@@ -294,29 +311,47 @@ pub(crate) fn component_ui_initializer(
 
     new_ui_ctx.next(&mut commands);
 }
+/// The creation context for a Component UI during its instantiation.
+///
+/// This is broken into two parts, an 'immutable' root context containing information about
+/// the target entity and its relevant component, and variable 'step context' representing
+/// information about the field path, properties and types for the UI element it is about to
+/// create.
+///
 pub struct UiCtxt<'a, 'b, 'w> {
     root_context: &'a ComponentUiContext<'b, 'w>,
     step_context: &'a ComponentUiStepContext<'a>,
 }
 impl<'a, 'b, 'w> UiCtxt<'a, 'b, 'w> {
+    /// Returns the targeted entity in the edited scene.
     pub fn world_target(&self) -> Entity {
         self.root_context.world_target
     }
+    /// Returns the current UiNode for this step.
     pub fn ui_anchor(&self) -> Entity {
         self.step_context.local_ui_focus
     }
+    /// Returns the property path for this step.
     pub fn path(&self) -> &str {
         self.step_context.local_path.as_str()
     }
+    /// Returns the [TypeInfo] for this step.
     pub fn value_type_info(&self) -> &'a TypeInfo {
         self.step_context.local_type_info
     }
+    /// Overrides the currently held step context.
+    /// This is useful if a custom UI wishes to "skip a step", such as hiding a newtype wrapper,
+    /// while still deferring the rest of it's creation logic to the default reflection UI generator.
     pub fn override_step(&self, overrride_ctxt: ComponentUiStepContext, commands: &mut Commands) {
         self.root_context.step(overrride_ctxt, commands);
     }
+    /// Continues reflecting and generating new UI elements.
+    /// Custom UI implementations are expected to invoke this in order to return control to
+    /// the default reflection UI generator.
     pub fn next(&self, commands: &mut Commands) {
         self.root_context.step(self.step_context.clone(), commands);
     }
+    /// Does what it says on the tin.
     pub fn new(
         root_context: &'a ComponentUiContext<'b, 'w>,
         step_context: &'a ComponentUiStepContext<'a>,
@@ -327,11 +362,19 @@ impl<'a, 'b, 'w> UiCtxt<'a, 'b, 'w> {
         }
     }
 }
+
+/// A struct representing the default reflection UI generation's state during a particular step.
 #[derive(Clone)]
 pub struct ComponentUiStepContext<'a> {
+    /// The currently focused Node element in the UI being generated.
     pub local_ui_focus: Entity,
+    /// The type of the property the UI is currently reflecting.
     pub local_type_info: &'a TypeInfo,
+    /// The property path of the property the UI is currently reflecting.
     pub local_path: String,
+    /// The name of the thing currently being reflected.
+    /// 
+    /// This is usually (but not always) the name of a Type.
     pub local_name: String,
 }
 impl<'a> ComponentUiStepContext<'a> {
@@ -339,19 +382,32 @@ impl<'a> ComponentUiStepContext<'a> {
         self.local_type_info.type_path_table().short_path()
     }
 }
+/// A struct representing the inherent properties of the edited scene component.
 #[derive(Clone)]
 pub struct ComponentUiContext<'b, 'w> {
+    /// The targeted entity in the scene being edited.
     pub world_target: Entity,
+    /// A clone of the component this UI will be for.
     pub the_component: &'b dyn PartialReflect,
+    /// A reference to the actual application type registry in the world.
+    ///
+    /// Do not construct one of these with a clone. The AppTypeRegistry changes during application runtime,
+    /// and if you try to make a UI without reflecting current state of the application you may end up with
+    /// missing component data.
+    ///
+    /// Note, the practical effect there is almost always "the editor crashes," but hyopthetically could be
+    /// your scene doesn't (de)serialize properly. So like, don't do that.
     pub reg: &'w AppTypeRegistry,
 }
 impl<'b, 'w> ComponentUiContext<'b, 'w> {
+    /// The type Id of the component.
     pub fn component_type_id(&self) -> TypeId {
         self.the_component
             .get_represented_type_info()
             .expect("failure to retrieve represented type info")
             .type_id()
     }
+    /// Does what it says.
     pub fn new(
         entity: Entity,
         component_type: TypeId,
@@ -366,6 +422,13 @@ impl<'b, 'w> ComponentUiContext<'b, 'w> {
             reg: world.resource::<AppTypeRegistry>(),
         }
     }
+    /// The meat of the show.
+    ///
+    /// This function is responsible for identifying and delegating/invoking the creation of the
+    /// relfected UI elements.
+    ///
+    /// It also identifies user supplied overrides for types it encounters and hands control of
+    /// the ui creation to those functions.
     pub fn step(&self, step_context: ComponentUiStepContext, commands: &mut Commands) {
         let registry = self.reg.read();
         let registration = registry
@@ -1057,6 +1120,8 @@ fn component_title(name: impl Into<String>) -> impl Bundle {
         ],
     )
 }
+/// Standard attribute field layout element.
+
 pub fn field_layout() -> impl Bundle {
     (
         Node {
@@ -1315,7 +1380,7 @@ fn field_is_parseable(value_id: &TypeId, reg: &AppTypeRegistry) -> Result<(), St
 }
 
 #[derive(Component, Clone)]
-pub struct EnumMetadata {
+struct EnumMetadata {
     pub info: EnumInfo,
     pub current_vidx: usize,
     pub path_string: String,
@@ -1342,31 +1407,61 @@ impl EnumMetadata {
 
 #[derive(Component)]
 struct SelectionIndex(pub usize);
-
+/// A struct which offers a set of key values for accessing a specific property on a component through reflection.
+///
+/// See also documentation in bevy reflection for [ParsedPath].
 #[derive(Component, Clone)]
 pub struct FieldAccessPath {
+    /// The property path for this field element.
     pub path: ParsedPath,
+    /// The [TypeId] of the value at this property path.
     pub value_type_id: TypeId,
+    /// The [TypeId] of the component.
     pub component_type_id: TypeId,
+    /// The entity which owns the component.
     pub owning_entity: Entity,
 }
+
+/// Marker Component designating the ui element which holds displayed entity UIs.
+///
+/// There should only be one of these, and it should be instantiated by this module.
 #[derive(Component)]
 pub struct SelectedEntityUiRoot;
+
+/// Component which denotes the root of a component UI and stores information about which component type it tracks.
 #[derive(Component)]
 pub struct ComponentIdentifer(pub TypeRegistration);
 
+/// Component which denots the root of an Entity UI and stores information about user-selected Components.
 #[derive(Component, Clone)]
 #[component(on_add=on_entity_ui_root_add)]
 #[component(on_remove=on_entity_ui_root_remove)]
 pub struct EntityUiRoot {
+    /// The entity in the scene that this UI represents.
     pub world_target: Entity,
+    /// The list of components that a user has explicitly selected to edit.
     pub desired_component_set: HashSet<TypeId>,
+    /// The components associated with this entity that are here because they're required by the desired components.
+    ///
+    /// Note, this is similar to required components, but this list is a -subset- of required components -
+    /// 0 or more of the components required by the user selected components may themselves also
+    /// be selected for editing. The ones that have not, go here, the ones that have, go into the
+    /// desired component set instead.
+    ///
     pub ride_along_components: HashSet<TypeId>,
 }
 
+/// This component is the mirror of [EnitityUiRoot].
+///
+/// Its presence denotes an entity which is being edited in the scene, and its value points to the entity
+/// which hosts its UI.
+///
+/// It also acts as a sentinel value to enable clean-up hooks to dead-letter the [EntityUiRoot] if the scene
+/// entity is ever despawned.
 #[derive(Component, Clone)]
 #[component(on_remove=on_world_target_remove)]
 pub struct WorldTarget {
+    /// The root node of the UI for this entity.
     entity_ui_root: Entity,
 }
 impl WorldTarget {
