@@ -1,4 +1,6 @@
+/// Entry point for Bevy Tinkerbox.
 
+/// Supplies primary editor plugin and some shared editor events.
 use std::{any::TypeId, collections::VecDeque};
 
 use bevy::{
@@ -45,7 +47,7 @@ mod editor_override_traits;
 mod theme;
 mod ui_context_core;
 pub mod widgets;
-
+/// Primary editor plugin. 
 pub struct ComponentEditorPlugin;
 impl Plugin for ComponentEditorPlugin {
     fn build(&self, app: &mut App) {
@@ -83,11 +85,17 @@ impl Plugin for ComponentEditorPlugin {
         );
     }
 }
+/// Marker struct for the editor UI camera.
+/// The user must add this to a camera in their editor binary's main.rs.
 #[derive(Component)]
 pub struct MainEditorCamera;
+/// Marker struct for the editor's scene view camera.
+/// At this juncture it is expected that this is the same as the UI camera.
+/// It is expected that this will change in the future, and it is also expected that this may change during runtime.
 #[derive(Component)]
 pub struct SceneViewCamera;
 
+///The asset loading status for the editor UI.
 #[derive(States, Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
 pub enum LoadingStatus {
     #[default]
@@ -102,10 +110,17 @@ fn editor_initialization(
         advance.set(LoadingStatus::Complete);
     }
 }
+//TODO - redefine editor scheduling in terms of system sets like a well-behaved boy
+///A system set which contains editor systems.
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
 pub struct EditorConstructionSet;
+
+/// The marker component for the screen sized transparent UI anchor that parents all editor elements.
 #[derive(Component)]
 pub struct EditorUiScreenRoot;
+
+/// The system which spawns the editor.
+/// It is currently intended that this should be scheduled exactly once.
 pub fn spawn_editor(
     mut commands: Commands,
     //TODO - Fix this
@@ -213,7 +228,11 @@ pub fn spawn_editor(
         ],
     ));
 }
-
+/// A relation defining the link between the edited entity "in the world" and the UI element responsible for one of it's components.
+///
+/// Note that not all User Interface entities necessarily need to contain Node.
+/// Entities with this relation will attempt to despawn any related entities when this component is removed.
+/// 
 #[derive(Component, Clone)]
 #[relationship(relationship_target = ComponentUisFor)]
 #[component(on_despawn = component_ui_despawner)]
@@ -340,6 +359,7 @@ fn component_ui_despawner(mut world: DeferredWorld, context: HookContext) {
     }
 }
 
+/// The other end of the [ComponentUiFor] relation.
 #[derive(Component, Clone)]
 #[relationship_target(relationship = ComponentUiFor)]
 pub struct ComponentUisFor(Vec<Entity>);
@@ -362,7 +382,9 @@ impl WorldRequiredComponentExtension for World {
             .unwrap_or_default()
     }
 }
-
+//TODO - replace this with the other field refresh event whose name I forget.
+/// Event which triggers input fields to update.
+/// This is deprecated.
 #[derive(EntityEvent)]
 pub struct UpdateComponentFieldValue {
     #[event_target]
@@ -437,7 +459,7 @@ fn on_update_event_dynamic(
     });
 }
 
-//
+
 fn instantiate_or_die(
     reg: &AppTypeRegistry,
     type_id: TypeId,

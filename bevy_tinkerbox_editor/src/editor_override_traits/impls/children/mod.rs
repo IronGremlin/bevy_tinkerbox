@@ -1,3 +1,4 @@
+/// Custom Editor UI for Children.
 use bevy::{
     ecs::world::DeferredWorld,
     feathers::theme::{ThemeBackgroundColor, ThemeBorderColor},

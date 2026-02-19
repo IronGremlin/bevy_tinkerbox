@@ -1,3 +1,5 @@
+/// Plumbing to help frontload initializing our UI assets.
+
 use bevy::image::ImageFilterMode;
 
 use bevy::image::ImageLoaderSettings;
@@ -10,6 +12,7 @@ pub(super) fn plugin(app: &mut App) {
     app.init_resource::<AssortedIcons>();
 }
 
+/// Assets required for our editor UI.
 #[derive(Resource, Asset, Clone, Reflect)]
 #[reflect(Resource)]
 pub struct AssortedIcons {
