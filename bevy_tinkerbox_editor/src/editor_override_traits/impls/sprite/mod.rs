@@ -14,7 +14,7 @@ use crate::{
     drag_snap::{DragSnapState2d, SnapDrag, SnapDragEnd, WorldSnap2dGrid},
     editor_override_traits::{EditorPerFieldUI, impls::sprite::texture_atlas_layout::GridArgs},
     theme::{local_text::FontSize, local_tokens},
-    ui_context_core::UiCtxt,
+    ui_context_core::{ComponentUiStepContext, UiCtxt, field_layout},
     widgets::{
         field_input::{ValueInputInput, ValueInputOutput, concrete_value_input_field},
         general::{
@@ -137,7 +137,12 @@ fn initialize_texture_atlas_layout_ui(
         RenderLayers::layer(1),
         DespawnOnExit(TALWindowStatus::Open),
     ));
-
+    let cam_bounds = Camera2dBounds::new(
+        Rect::from_center_size(size_of_image.as_vec2() * 0.5, size_of_image.as_vec2()),
+        0.005,
+        20.,
+        size_of_image.as_vec2() * 0.25,
+    );
     let cam = commands
         .spawn((
             Camera2d,
@@ -146,16 +151,8 @@ fn initialize_texture_atlas_layout_ui(
                 ..default()
             },
             RenderTarget::Image(camera_canvas.clone().into()),
-            Camera2dBounds {
-                bounds: Rect::from_center_size(
-                    size_of_image.as_vec2() * 0.5,
-                    size_of_image.as_vec2(),
-                ),
-                margin: size_of_image.as_vec2() * 0.25,
-                scale_min: 0.005,
-                scale_max: 50.,
-            },
-            Transform::from_scale(Vec2::splat(0.25).extend(1.))
+            cam_bounds.clone(),
+            Transform::from_scale(Vec2::splat(cam_bounds.zoom()).extend(1.))
                 .with_translation((0.5 * size_of_image.as_vec2()).extend(1.)),
             RenderLayers::layer(1),
             DespawnOnExit(TALWindowStatus::Open),
@@ -172,7 +169,7 @@ fn initialize_texture_atlas_layout_ui(
         },
         Pickable::default(),
         DragMeToPan(cam),
-//        Anchor(Vec2::new(1., 1.) * -0.5),
+        //        Anchor(Vec2::new(1., 1.) * -0.5),
         Transform::from_translation((size_of_image.as_vec2() * 0.5).extend(1.)),
         RenderLayers::layer(1),
         DespawnOnExit(TALWindowStatus::Open),
@@ -293,9 +290,25 @@ fn initialize_texture_atlas_layout_ui(
                 ..default()
             },
             ViewportNode { camera: cam },
+            observe(bounded_viewport_camera_scroll),
             TextureAtlasPreviewNode,
             DespawnOnExit(TALWindowStatus::Open),
         ));
+}
+fn bounded_viewport_camera_scroll(
+    src: On<Pointer<Scroll>>,
+    viewports: Query<&ViewportNode>,
+    mut camera_w_bounds: Query<(&mut Transform, &mut Camera2dBounds)>,
+) {
+    let Ok(vp_node) = viewports.get(src.event_target()) else {
+        return;
+    };
+    let Ok((mut cam_transform, mut cam_bounds)) = camera_w_bounds.get_mut(vp_node.camera) else {
+        return;
+    };
+    let step = src.event().y * 0.01 * -1.0;
+    cam_bounds.zoom_point = (cam_bounds.zoom_point + step).clamp(0.0, 1.0);
+    cam_transform.scale = Vec2::splat(cam_bounds.zoom()).extend(1.0);
 }
 //God this sounds so much cooler than it is
 fn taw_update_cascade(
@@ -551,9 +564,36 @@ impl EditorPerFieldUI for Sprite {
 
         match ctxt.path() {
             "texture_atlas" => {
-                //TODO - make this a real UI element that doesn't suck
-                commands.entity(ctxt.ui_anchor()).with_child((
-                    Node::default(),
+                let row = commands
+                    .spawn((Node {
+                        display: Display::Grid,
+                        grid_auto_flow: GridAutoFlow::Column,
+                        grid_auto_columns: vec![
+                            GridTrack::flex(1.),
+                            GridTrack::fr(3.),
+                            GridTrack::flex(2.),
+                        ],
+                        padding: UiRect::all(px(1.)),
+                        column_gap: px(6.),
+                        ..default()
+                    },))
+                    .id();
+                commands.entity(ctxt.ui_anchor()).add_child(row);
+                commands.entity(row).with_child((
+                    Node {
+                        display: Display::Grid,
+                        grid_column: GridPlacement::start(1),
+                        ..default()
+                    },
+                    children![(Text::new("texture atlas layout :"), FontSize::Normal.font())],
+                ));
+
+                commands.entity(row).with_child((
+                    Node {
+                        display: Display::Grid,
+                        grid_column: GridPlacement::start(2),
+                        ..default()
+                    },
                     children![(
                         Node {
                             width: px(12.0),
@@ -566,6 +606,28 @@ impl EditorPerFieldUI for Sprite {
                         observe(handle_click),
                     )],
                 ));
+
+                // TODO - this whole UI for the texture atlas is technically wrapped in an
+                // option, and we can't construct this unless we actually exist.
+                // Dealing with enums right now is stupid so I'm just going to kick the can
+                // on this until we beef up ui context core stuff to make this less of a PITA.
+
+                /*
+                let next_ui_anchor = commands.spawn(field_layout()).id();
+                commands.entity(ctxt.ui_anchor()).add_child(next_ui_anchor);
+                let next_step = ComponentUiStepContext {
+                    local_ui_focus: next_ui_anchor,
+                    local_type_info: ctxt
+                        .value_type_info()
+                        .as_struct()
+                        .unwrap()
+                        .field("index")
+                        .and_then(|t| t.type_info())
+                        .unwrap(),
+                    local_path: "texture_atlas.index".to_owned(),
+                    local_name: "index".to_owned(),
+                };
+                ctxt.override_step(next_step, commands); */
             }
             _ => {
                 ctxt.next(commands);
@@ -909,7 +971,6 @@ pub mod texture_atlas_layout {
     }
 }
 
-
 //TODO -  An image would help this make sense but I'm too lazy to do that right now.
 /// Sets the maximum world-space co-ordinates and zoom level for a 2d camera.
 ///
@@ -922,7 +983,7 @@ pub mod texture_atlas_layout {
 /// of the rectangular bounds will be on the top or bottom edge of the screen as the camera attempts to
 /// scroll up or down.
 ///
-#[derive(Component, Clone, Debug, PartialEq)]
+#[derive(Component, Clone, Debug)]
 pub struct Camera2dBounds {
     /// The world-space co-ordinates that must stay in view of the camera.
     pub bounds: Rect,
@@ -933,12 +994,29 @@ pub struct Camera2dBounds {
     /// The vertical and horizonal "thickness" of the region that
     /// will stay in view
     pub margin: Vec2,
+    scale_curve: EasingCurve<f32>,
+    zoom_point: f32,
+}
+impl Camera2dBounds {
+    pub fn new(bounds: Rect, scale_min: f32, scale_max: f32, margin: Vec2) -> Camera2dBounds {
+        Camera2dBounds {
+            bounds,
+            scale_min,
+            scale_max,
+            margin,
+            scale_curve: EasingCurve::new(scale_min, scale_max, EaseFunction::SmoothStep),
+            zoom_point: 0.08,
+        }
+    }
+    pub fn zoom(&self) -> f32 {
+        self.scale_curve.sample_clamped(self.zoom_point)
+    }
 }
 
 fn bounded_2d_camera(
     mut cameras: Query<
         (&Camera, &GlobalTransform, &Camera2dBounds, &mut Transform),
-        (With<Camera2d>),
+        With<Camera2d>,
     >,
 ) {
     for (cam, gt, bounds, mut transform) in cameras.iter_mut() {
@@ -1004,7 +1082,6 @@ fn drag_for_camera_movement(mut world: DeferredWorld, context: HookContext) {
         return;
     };
     let camera = *c;
-    
 
     world.commands().entity(context.entity).insert(observe(
         move |src: On<Pointer<Drag>>,
