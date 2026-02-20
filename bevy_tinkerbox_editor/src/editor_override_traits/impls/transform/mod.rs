@@ -1,7 +1,13 @@
 use bevy::{prelude::*, ui_widgets::observe};
 
 use crate::{
-    editor_override_traits::{EditorHeaderUI, EditorPerFieldUI}, ui_context_core::{RefreshInputFields, UiCtxt}, widgets::{general::{FormControl, FormControlSubject, FormElement, FormElementMarker}, icons::IconImage}, ComponentUiFor, ComponentUisFor, EntityUiRoot
+    ComponentUiFor, ComponentUisFor, EntityUiRoot,
+    editor_override_traits::{EditorHeaderUI, EditorPerFieldUI},
+    ui_context_core::{RefreshInputFields, UiCtxt},
+    widgets::{
+        general::{FormControl, FormControlSubject, FormElement, FormElementMarker},
+        icons::IconImage,
+    },
 };
 pub(super) fn plugin(app: &mut App) {
     app.add_observer(transform_editor_widget_spawner);

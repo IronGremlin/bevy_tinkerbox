@@ -1,9 +1,5 @@
 /// Utilities to better allow scene (de)serialization for scenes containing [Sprite]s.
-use bevy::{
-    asset::AssetPath,
-    ecs::world::DeferredWorld,
-    prelude::*,
-};
+use bevy::{asset::AssetPath, ecs::world::DeferredWorld, prelude::*};
 use serde::Serialize;
 
 pub(super) fn plugin(app: &mut App) {

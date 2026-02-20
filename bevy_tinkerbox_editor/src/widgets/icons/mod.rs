@@ -1,5 +1,7 @@
-use bevy::{ecs::{lifecycle::HookContext, world::DeferredWorld}, prelude::*};
-
+use bevy::{
+    ecs::{lifecycle::HookContext, world::DeferredWorld},
+    prelude::*,
+};
 
 #[derive(Component, Clone)]
 #[component(on_add = image_node_sans_handle_added)]
@@ -77,14 +79,9 @@ impl IconImage {
     }
 }
 fn image_node_sans_handle_added(mut world: DeferredWorld, context: HookContext) {
-    let val = world
-        .get::<IconImage>(context.entity)
-        .unwrap()
-        .clone();
+    let val = world.get::<IconImage>(context.entity).unwrap().clone();
     let new = val.given_world(&world);
     let mut commands = world.commands();
     commands.entity(context.entity).insert(new);
-    commands
-        .entity(context.entity)
-        .remove::<IconImage>();
+    commands.entity(context.entity).remove::<IconImage>();
 }

@@ -1,7 +1,10 @@
 use crate::{
+    FieldAccessPath, RefreshInputFields, UpdateComponentFieldValue,
     editor_override_traits::{
         EditorFieldUI, ReflectEditorFieldUI, ReflectEditorHeaderUI, ReflectEditorPerFieldUI,
-    }, ui_context_core::{field_layout, ComponentUiStepContext, UiCtxt}, widgets::icons::IconImage, FieldAccessPath, RefreshInputFields, UpdateComponentFieldValue
+    },
+    ui_context_core::{ComponentUiStepContext, UiCtxt, field_layout},
+    widgets::icons::IconImage,
 };
 use bevy::{
     asset::io::file::FileAssetReader,

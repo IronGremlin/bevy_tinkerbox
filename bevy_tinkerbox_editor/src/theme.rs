@@ -1,5 +1,4 @@
 /// A collection of Bevy Feathers inspired theme tokens and related resources and functions.
-
 use bevy::{
     app::App,
     color::Luminance,
@@ -31,7 +30,7 @@ pub mod local_text {
     pub const BIG_FONT_SIZE: f32 = 18.0;
     pub const MED_FONT_SIZE: f32 = 16.0;
     pub const FONT_SIZE: f32 = 12.0;
-    
+
     /// Enum describing expected font sized categories.
     #[derive(Default, Copy, Clone)]
     pub enum FontSize {

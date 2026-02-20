@@ -4,9 +4,9 @@ pub mod add_entity_button;
 pub mod component_browser;
 pub mod field_input;
 pub mod general;
+pub mod icons;
 pub mod scene_actions;
 pub mod view_only_component;
-pub mod icons;
 
 pub(super) fn plugin(app: &mut App) {
     app.add_plugins((

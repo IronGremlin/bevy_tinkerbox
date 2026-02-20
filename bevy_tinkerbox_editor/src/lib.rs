@@ -47,7 +47,7 @@ mod editor_override_traits;
 mod theme;
 mod ui_context_core;
 pub mod widgets;
-/// Primary editor plugin. 
+/// Primary editor plugin.
 pub struct ComponentEditorPlugin;
 impl Plugin for ComponentEditorPlugin {
     fn build(&self, app: &mut App) {
@@ -139,7 +139,7 @@ pub fn spawn_editor(
             row_gap: px(6),
             ..Default::default()
         },
-	EditorUiScreenRoot,
+        EditorUiScreenRoot,
         BackgroundColor(Color::NONE),
         //Whoa man do NOT forget to do this or you'll have a real bad time lmao
         Pickable {
@@ -232,7 +232,7 @@ pub fn spawn_editor(
 ///
 /// Note that not all User Interface entities necessarily need to contain Node.
 /// Entities with this relation will attempt to despawn any related entities when this component is removed.
-/// 
+///
 #[derive(Component, Clone)]
 #[relationship(relationship_target = ComponentUisFor)]
 #[component(on_despawn = component_ui_despawner)]
@@ -338,9 +338,7 @@ fn component_ui_despawner(mut world: DeferredWorld, context: HookContext) {
                     .with_child(view_only_component(c_name.to_owned(), type_id.clone()));
             } else {
                 for c_id in dead_letter_bin {
-                    commands
-                        .entity(new_root.world_target)
-                        .remove_by_id(c_id);
+                    commands.entity(new_root.world_target).remove_by_id(c_id);
                 }
 
                 commands.entity(new_root.world_target).log_components();
@@ -458,7 +456,6 @@ fn on_update_event_dynamic(
         component_ui_root: source.ui_entity,
     });
 }
-
 
 fn instantiate_or_die(
     reg: &AppTypeRegistry,
@@ -617,8 +614,6 @@ fn instantiate_or_die(
         }
     }
 }
-
-
 
 // Event traversal would force us to visit every entity in the middle -
 // This still blasts a bunch of updates we don't need but at least it stays scoped

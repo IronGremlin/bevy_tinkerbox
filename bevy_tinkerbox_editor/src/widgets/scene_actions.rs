@@ -36,7 +36,7 @@ fn scene_save(src: On<SaveScene>, world: DeferredWorld) {
     let proxy_registry = world.resource::<SerializationProxies>();
 
     let mut aggregate: HashSet<TypeId> = HashSet::new();
-    let mut scene_targets: HashSet<Entity> =  HashSet::new();
+    let mut scene_targets: HashSet<Entity> = HashSet::new();
 
     ui_roots.iter(&world).for_each(|ui_root| {
         let desired_serialization_components: HashSet<TypeId> = ui_root
@@ -58,11 +58,10 @@ fn scene_save(src: On<SaveScene>, world: DeferredWorld) {
         scene_targets.insert(ui_root.world_target);
     });
 
-
     let big_scene = DynamicSceneBuilder::from_world(&world)
         .with_component_filter(SceneFilter::Allowlist(aggregate))
         .deny_all_resources()
-        .extract_entities(scene_targets.iter().map(|x|*x))
+        .extract_entities(scene_targets.iter().map(|x| *x))
         .build();
 
     for ent in big_scene.entities.iter() {

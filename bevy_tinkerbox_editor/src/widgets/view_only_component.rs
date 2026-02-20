@@ -2,7 +2,10 @@ use std::any::TypeId;
 
 use bevy::{prelude::*, ui_widgets::observe};
 
-use crate::{widgets::{component_browser::ComponentSelection, icons::IconImage}, EntityUiRoot};
+use crate::{
+    EntityUiRoot,
+    widgets::{component_browser::ComponentSelection, icons::IconImage},
+};
 
 #[derive(Component)]
 pub struct RideAlongComponent(pub TypeId);

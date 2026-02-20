@@ -18,8 +18,8 @@ use bevy::{
     },
     platform::collections::HashSet,
     reflect::{
-        DynamicEnum, Enum, EnumInfo, OpaqueInfo, ParsedPath, ReflectKind,
-        TypeInfo, TypeRegistration, VariantType,
+        DynamicEnum, Enum, EnumInfo, OpaqueInfo, ParsedPath, ReflectKind, TypeInfo,
+        TypeRegistration, VariantType,
     },
     ui::Checked,
     ui_widgets::{RadioButton, RadioGroup, ValueChange, observe},
@@ -1175,7 +1175,6 @@ pub fn field_layout() -> impl Bundle {
         ThemeBorderColor(local_tokens::PANE_BORDER),
     )
 }
-
 
 pub fn field_row_layout() -> impl Bundle {
     Node {

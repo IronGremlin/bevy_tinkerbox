@@ -16,10 +16,7 @@ use crate::{
     drag_snap::{DragSnapState2d, SnapDrag, SnapDragEnd, WorldSnap2dGrid},
     editor_override_traits::{EditorPerFieldUI, impls::sprite::texture_atlas_layout::GridArgs},
     theme::{local_text::FontSize, local_tokens},
-    ui_context_core::{
-        RefreshInputFields, UiCtxt,
-        field_row_layout,
-    },
+    ui_context_core::{RefreshInputFields, UiCtxt, field_row_layout},
     widgets::{
         field_input::{ValueInputInput, ValueInputOutput, concrete_value_input_field},
         general::{

@@ -7,11 +7,15 @@ use bevy::{
 };
 
 use crate::{
-    editor_override_traits::EditorFieldUI, theme::{self, local_text::FontSize, local_tokens}, ui_context_core::{RefreshInputFields, UiCtxt, WorldTarget}, widgets::{
+    EditorUiScreenRoot,
+    editor_override_traits::EditorFieldUI,
+    theme::{self, local_text::FontSize, local_tokens},
+    ui_context_core::{RefreshInputFields, UiCtxt, WorldTarget},
+    widgets::{
         add_entity_button::{NamedWorldTarget, NamedWorldTargetItem},
         general::{CloseEvent, CloseRoot, HoverBackground},
         icons::IconImage,
-    }, EditorUiScreenRoot
+    },
 };
 
 pub(super) fn plugin(app: &mut App) {
@@ -127,7 +131,9 @@ fn children_on_refresh(
             ))
             .id();
         if i != 0 {
-            commands.entity(up_chev).insert(list_item_order_button_menu(n.id(), i, true));
+            commands
+                .entity(up_chev)
+                .insert(list_item_order_button_menu(n.id(), i, true));
         }
         let down_chev = commands
             .spawn((
@@ -142,8 +148,10 @@ fn children_on_refresh(
                 IconImage::from_path("lucide/chevron-down-white.png".to_owned()),
             ))
             .id();
-         if i != max_idx {
-             commands.entity(down_chev).insert(list_item_order_button_menu(n.id(), i, false));
+        if i != max_idx {
+            commands
+                .entity(down_chev)
+                .insert(list_item_order_button_menu(n.id(), i, false));
         }
         let ui_anchor = commands.spawn(entity_display_item(&n, idx)).id();
         commands
@@ -152,17 +160,22 @@ fn children_on_refresh(
     }
 }
 fn list_item_order_button_menu(world_target: Entity, idx: usize, promote: bool) -> impl Bundle {
-    observe(move |_src: On<Pointer<Click>>,dads: Query<&ChildOf>, mut commands: Commands| {
-        if let Ok(dad) = dads.get(world_target) {
-            commands.entity(dad.0).entry::<Children>().and_modify(move |mut kids| {
-                if promote {
-                    kids.swap(idx, idx -1);
-                } else {
-                    kids.swap(idx, idx +1);
-                }
-            });
-        }
-    })
+    observe(
+        move |_src: On<Pointer<Click>>, dads: Query<&ChildOf>, mut commands: Commands| {
+            if let Ok(dad) = dads.get(world_target) {
+                commands
+                    .entity(dad.0)
+                    .entry::<Children>()
+                    .and_modify(move |mut kids| {
+                        if promote {
+                            kids.swap(idx, idx - 1);
+                        } else {
+                            kids.swap(idx, idx + 1);
+                        }
+                    });
+            }
+        },
+    )
 }
 
 fn children_header(
@@ -423,7 +436,11 @@ fn watch_orphans(
         }
     }
 }
-fn watch_child_ordering(those_whove_shifted: Query<Entity, (Changed<Children>, With<WorldTarget>)>, targets: Query<(Entity, &OurTarget)>, mut commands: Commands) {
+fn watch_child_ordering(
+    those_whove_shifted: Query<Entity, (Changed<Children>, With<WorldTarget>)>,
+    targets: Query<(Entity, &OurTarget)>,
+    mut commands: Commands,
+) {
     for world_target in those_whove_shifted.iter() {
         for (component_ui_root, OurTarget(target)) in targets.iter() {
             if world_target == *target {
@@ -431,5 +448,5 @@ fn watch_child_ordering(those_whove_shifted: Query<Entity, (Changed<Children>, W
                 break;
             }
         }
-    }    
+    }
 }

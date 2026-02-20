@@ -1,6 +1,4 @@
 /// Traits which supply UI widget definition for Components.
-
-
 use bevy::{app::App, ecs::system::Commands, reflect::reflect_trait};
 
 use crate::ui_context_core::UiCtxt;

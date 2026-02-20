@@ -7,9 +7,15 @@ use bevy::{
 };
 
 use crate::{
-    theme::{local_text::FontSize, local_tokens}, ui_context_core::{SelectedEntityUiRoot, WorldTarget}, widgets::{component_browser::{
-        component_browser_widget, ComponentBrowserOpenRequest, ComponentBrowserWidgetRoot
-    }, icons::IconImage}, ComponentUiFor, ComponentUisFor, EntityUiRoot
+    ComponentUiFor, ComponentUisFor, EntityUiRoot,
+    theme::{local_text::FontSize, local_tokens},
+    ui_context_core::{SelectedEntityUiRoot, WorldTarget},
+    widgets::{
+        component_browser::{
+            ComponentBrowserOpenRequest, ComponentBrowserWidgetRoot, component_browser_widget,
+        },
+        icons::IconImage,
+    },
 };
 
 pub(super) fn plugin(app: &mut App) {

@@ -1,5 +1,4 @@
 /// Plumbing to help frontload initializing our UI assets.
-
 use bevy::image::ImageFilterMode;
 
 use bevy::image::ImageLoaderSettings;
