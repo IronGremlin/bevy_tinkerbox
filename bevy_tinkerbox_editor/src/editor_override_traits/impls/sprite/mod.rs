@@ -1,3 +1,5 @@
+use std::any::TypeId;
+
 use ::bevy::prelude::*;
 use bevy::{
     asset::RenderAssetUsages,
@@ -14,7 +16,10 @@ use crate::{
     drag_snap::{DragSnapState2d, SnapDrag, SnapDragEnd, WorldSnap2dGrid},
     editor_override_traits::{EditorPerFieldUI, impls::sprite::texture_atlas_layout::GridArgs},
     theme::{local_text::FontSize, local_tokens},
-    ui_context_core::{ComponentUiStepContext, UiCtxt, field_layout},
+    ui_context_core::{
+        RefreshInputFields, UiCtxt,
+        field_row_layout,
+    },
     widgets::{
         field_input::{ValueInputInput, ValueInputOutput, concrete_value_input_field},
         general::{
@@ -56,18 +61,21 @@ struct SizeOfTexture(UVec2);
 fn make_close_tal_ui(
     world_target: Entity,
     gargs_holder: Entity,
+    the_refresh_target: Entity,
 ) -> impl Fn(
     On<Pointer<Click>>,
     Query<&GridArgs>,
     Query<&mut Sprite>,
     ResMut<Assets<TextureAtlasLayout>>,
     ResMut<NextState<TALWindowStatus>>,
+    Commands,
 ) {
     move |_src: On<Pointer<Click>>,
           gargs: Query<&GridArgs>,
           mut sprites: Query<&mut Sprite>,
           mut tals: ResMut<Assets<TextureAtlasLayout>>,
-          mut state: ResMut<NextState<TALWindowStatus>>| {
+          mut state: ResMut<NextState<TALWindowStatus>>,
+          mut commands: Commands| {
         let Ok(args) = gargs.get(gargs_holder) else {
             return;
         };
@@ -80,6 +88,9 @@ fn make_close_tal_ui(
             index: 0,
         });
         state.set(TALWindowStatus::Closed);
+        commands.trigger(RefreshInputFields {
+            component_ui_root: the_refresh_target,
+        });
     }
 }
 
@@ -272,7 +283,11 @@ fn initialize_texture_atlas_layout_ui(
                     },
                     ThemeBorderColor(local_tokens::PANE_BORDER),
                     ThemeBackgroundColor(local_tokens::WARNING_PRIMARY),
-                    observe(make_close_tal_ui(src.event_target(), gargs_holder))
+                    observe(make_close_tal_ui(
+                        src.event_target(),
+                        gargs_holder,
+                        src.event().ui_anchor
+                    ))
                 )
             ],
         ))
@@ -531,53 +546,85 @@ fn render_texture_atlas_cells(
 #[derive(EntityEvent)]
 struct OpenTextureAtlasUi {
     entity: Entity,
+    ui_anchor: Entity,
     args: GridArgs,
     image: Handle<Image>,
 }
 
 impl EditorPerFieldUI for Sprite {
     fn construct_per_field_ui(&self, ctxt: &UiCtxt, commands: &mut Commands) {
-        let (world_target, _ui_anchor) = (ctxt.world_target(), ctxt.ui_anchor());
-
-        let handle_click = move |_src: On<Pointer<Click>>,
-                                 sprites: Query<&Sprite>,
-                                 layouts: Res<Assets<TextureAtlasLayout>>,
-                                 mut commands: Commands| {
-            let Ok(sprite) = sprites.get(world_target) else {
-                return;
-            };
-            let gargs: GridArgs = sprite
-                .texture_atlas
-                .as_ref()
-                .and_then(|texa| layouts.get(texa.layout.id()))
-                .map(|layout| layout.clone().into())
-                .unwrap_or_default();
-
-            commands
-                .entity(world_target)
-                .trigger(|e| OpenTextureAtlasUi {
-                    entity: e,
-                    args: gargs,
-                    image: sprite.image.clone(),
-                });
-        };
-
         match ctxt.path() {
             "texture_atlas" => {
-                let row = commands
-                    .spawn((Node {
-                        display: Display::Grid,
-                        grid_auto_flow: GridAutoFlow::Column,
-                        grid_auto_columns: vec![
-                            GridTrack::flex(1.),
-                            GridTrack::fr(3.),
-                            GridTrack::flex(2.),
-                        ],
-                        padding: UiRect::all(px(1.)),
-                        column_gap: px(6.),
+                let (world_target, _ui_anchor) = (ctxt.world_target(), ctxt.ui_anchor());
+                let row_container = commands
+                    .spawn(Node {
+                        display: Display::None,
                         ..default()
-                    },))
+                    })
                     .id();
+
+                let handle_click =
+                    move |_src: On<Pointer<Click>>,
+                          sprites: Query<&Sprite>,
+                          layouts: Res<Assets<TextureAtlasLayout>>,
+                          mut commands: Commands| {
+                        let Ok(sprite) = sprites.get(world_target) else {
+                            return;
+                        };
+                        let gargs: GridArgs = sprite
+                            .texture_atlas
+                            .as_ref()
+                            .and_then(|texa| layouts.get(texa.layout.id()))
+                            .map(|layout| layout.clone().into())
+                            .unwrap_or_default();
+
+                        commands
+                            .entity(world_target)
+                            .trigger(|e| OpenTextureAtlasUi {
+                                entity: e,
+                                ui_anchor: row_container,
+                                args: gargs,
+                                image: sprite.image.clone(),
+                            });
+                    };
+                let watch_refresh =
+                    move |src: On<RefreshInputFields>,
+                          sprites: Query<&Sprite>,
+                          mut commands: Commands| {
+                        let row_container = src.event_target();
+                        let Ok(sprite) = sprites.get(world_target) else {
+                            return;
+                        };
+                        commands.entity(row_container).despawn_children();
+
+                        if sprite.texture_atlas.is_some() {
+                            commands.entity(row_container).insert(Node::default());
+                            let initial_index = sprite
+                                .texture_atlas
+                                .as_ref()
+                                .map(|n| n.index)
+                                .unwrap()
+                                .clone();
+                            UiCtxt::spawn_input_field_for_type(
+                                row_container,
+                                world_target,
+                                TypeId::of::<Sprite>(),
+                                TypeId::of::<usize>(),
+                                "texture_atlas.0.index",
+                                "index",
+                                "usize",
+                                initial_index,
+                                &mut commands,
+                            );
+                        } else {
+                            commands.entity(row_container).insert(Node {
+                                display: Display::None,
+                                ..default()
+                            });
+                        }
+                    };
+
+                let row = commands.spawn(field_row_layout()).id();
                 commands.entity(ctxt.ui_anchor()).add_child(row);
                 commands.entity(row).with_child((
                     Node {
@@ -606,28 +653,13 @@ impl EditorPerFieldUI for Sprite {
                         observe(handle_click),
                     )],
                 ));
-
-                // TODO - this whole UI for the texture atlas is technically wrapped in an
-                // option, and we can't construct this unless we actually exist.
-                // Dealing with enums right now is stupid so I'm just going to kick the can
-                // on this until we beef up ui context core stuff to make this less of a PITA.
-
-                /*
-                let next_ui_anchor = commands.spawn(field_layout()).id();
-                commands.entity(ctxt.ui_anchor()).add_child(next_ui_anchor);
-                let next_step = ComponentUiStepContext {
-                    local_ui_focus: next_ui_anchor,
-                    local_type_info: ctxt
-                        .value_type_info()
-                        .as_struct()
-                        .unwrap()
-                        .field("index")
-                        .and_then(|t| t.type_info())
-                        .unwrap(),
-                    local_path: "texture_atlas.index".to_owned(),
-                    local_name: "index".to_owned(),
-                };
-                ctxt.override_step(next_step, commands); */
+                commands.entity(ctxt.ui_anchor()).add_child(row_container);
+                commands
+                    .entity(row_container)
+                    .insert(observe(watch_refresh));
+                commands.trigger(RefreshInputFields {
+                    component_ui_root: row_container,
+                });
             }
             _ => {
                 ctxt.next(commands);
@@ -636,9 +668,11 @@ impl EditorPerFieldUI for Sprite {
     }
 }
 mod layout {
-    pub const BIG_COLUMN_WIDTH: f32 = 64.;
-    pub const BIG_ROW_HEIGHT: f32 = 18.;
-    pub const SUB_COL_WIDTH: f32 = 24.;
+    use crate::theme::local_text;
+
+    pub const BIG_COLUMN_WIDTH: f32 = local_text::BIG_FONT_SIZE * 5.0;
+    pub const BIG_ROW_HEIGHT: f32 = local_text::FONT_SIZE * 1.5;
+    pub const SUB_COL_WIDTH: f32 = local_text::MED_FONT_SIZE * 2.25;
 }
 use layout::*;
 #[derive(Reflect, Clone, Copy, Eq, PartialEq, Component)]
@@ -687,12 +721,11 @@ fn texture_atlas_preview_ui_bundle(args: texture_atlas_layout::GridArgs) -> impl
         (
             Node {
                 display: Display::Grid,
+                grid_template_columns: vec![RepeatedGridTrack::percent(1, 100.)],
                 border: UiRect::all(px(1.)),
                 padding: UiRect::horizontal(px(2.)),
                 ..default()
             },
-            ThemeBorderColor(local_tokens::PANE_BORDER),
-            ThemeBackgroundColor(local_tokens::PANE_BG),
             children![(
                 match key {
                     CellSizeX => concrete_value_input_field(gargs.cell_size.x),

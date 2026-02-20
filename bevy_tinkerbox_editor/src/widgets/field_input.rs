@@ -156,8 +156,9 @@ fn value_input_field_no_opinions() -> impl Bundle {
         TextInputStyle { ..default() },
         Node {
             display: Display::Grid,
-            max_height: percent(100),
-            max_width: percent(100),
+            justify_self: JustifySelf::Center,
+            width: px(FontSize::Normal.float() * 20. + 2.),
+            max_width: percent(60.),
             ..default()
         },
         take_focus_on_click(),

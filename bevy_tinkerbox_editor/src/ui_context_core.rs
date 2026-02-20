@@ -4,31 +4,43 @@
 ///
 /// It owns the auto-generation of Reflection derived Component UIs as well as dispatching to custom
 /// UI overrides.
-
 use std::any::TypeId;
 
 use ::bevy::prelude::*;
 use bevy::{
-    ecs::{lifecycle::HookContext, reflect::ReflectCommandExt, relationship::RelatedSpawner, world::DeferredWorld},
+    ecs::{
+        lifecycle::HookContext, reflect::ReflectCommandExt, relationship::RelatedSpawner,
+        world::DeferredWorld,
+    },
     feathers::{
         controls::radio,
         theme::{ThemeBackgroundColor, ThemeBorderColor},
     },
     platform::collections::HashSet,
     reflect::{
-        DynamicEnum, Enum, EnumInfo, OpaqueInfo, ParsedPath, ReflectKind, TypeInfo,
-        TypeRegistration, VariantType,
+        DynamicEnum, Enum, EnumInfo, OpaqueInfo, ParsedPath, ReflectKind,
+        TypeInfo, TypeRegistration, VariantType,
     },
     ui::Checked,
-    ui_widgets::{observe, RadioButton, RadioGroup, ValueChange},
+    ui_widgets::{RadioButton, RadioGroup, ValueChange, observe},
 };
 
 use crate::{
+    ComponentUiFor, UpdateComponentFieldValue, WorldRequiredComponentExtension,
     editor_override_traits::{
         ReflectEditorFieldUI, ReflectEditorHeaderUI, ReflectEditorPerFieldUI,
-    }, instantiate_or_die, theme::{local_text::FontSize, local_tokens}, view_only_component, widgets::{
-        component_browser::ComponentSelection, field_input::{dynamic_value_input_field, input_field_error}, general::{CloseEvent, CloseRoot}, icons::IconImage, scene_actions::ComponentInstantiation, view_only_component::RideAlongComponent
-    }, ComponentUiFor, UpdateComponentFieldValue, WorldRequiredComponentExtension
+    },
+    instantiate_or_die,
+    theme::{local_text::FontSize, local_tokens},
+    view_only_component,
+    widgets::{
+        component_browser::ComponentSelection,
+        field_input::{concrete_value_input_field, dynamic_value_input_field, input_field_error},
+        general::{CloseEvent, CloseRoot},
+        icons::IconImage,
+        scene_actions::ComponentInstantiation,
+        view_only_component::RideAlongComponent,
+    },
 };
 
 pub(super) fn plugin(app: &mut App) {
@@ -361,6 +373,44 @@ impl<'a, 'b, 'w> UiCtxt<'a, 'b, 'w> {
             step_context,
         }
     }
+
+    pub fn spawn_input_field_for_type<T: Reflect + Clone>(
+        ui_anchor: Entity,
+        world_target: Entity,
+        component_type: TypeId,
+        value_type: TypeId,
+        value_path: &str,
+        field_name: impl Into<String>,
+        value_type_name: impl Into<String>,
+        starting_value: T,
+        commands: &mut Commands,
+    ) {
+        commands.entity(ui_anchor).insert(field_row_layout());
+        commands.entity(ui_anchor).with_child((
+            Node {
+                justify_self: JustifySelf::Start,
+                ..default()
+            },
+            children![(Text::new(field_name), FontSize::Normal.font(),)],
+        ));
+
+        commands.entity(ui_anchor).with_child((
+            concrete_value_input_field::<T>(starting_value),
+            FieldAccessPath {
+                path: ParsedPath::parse(value_path).expect("Invalid path"),
+                value_type_id: value_type,
+                component_type_id: component_type,
+                owning_entity: world_target,
+            },
+        ));
+        commands.entity(ui_anchor).with_child((
+            Node {
+                justify_self: JustifySelf::End,
+                ..default()
+            },
+            children![(Text::new(value_type_name), FontSize::Normal.font(),)],
+        ));
+    }
 }
 
 /// A struct representing the default reflection UI generation's state during a particular step.
@@ -373,7 +423,7 @@ pub struct ComponentUiStepContext<'a> {
     /// The property path of the property the UI is currently reflecting.
     pub local_path: String,
     /// The name of the thing currently being reflected.
-    /// 
+    ///
     /// This is usually (but not always) the name of a Type.
     pub local_name: String,
 }
@@ -772,18 +822,7 @@ impl<'b, 'w> ComponentUiContext<'b, 'w> {
     ) {
         let row = commands
             .spawn((
-                Node {
-                    display: Display::Grid,
-                    grid_auto_flow: GridAutoFlow::Column,
-                    grid_auto_columns: vec![
-                        GridTrack::flex(1.),
-                        GridTrack::fr(3.),
-                        GridTrack::flex(2.),
-                    ],
-                    padding: UiRect::all(px(1.)),
-                    column_gap: px(6.),
-                    ..default()
-                },
+                field_row_layout(),
                 children![(
                     Name::new("Field Label"),
                     Text::new(step_context.local_name),
@@ -1137,6 +1176,25 @@ pub fn field_layout() -> impl Bundle {
     )
 }
 
+
+pub fn field_row_layout() -> impl Bundle {
+    Node {
+        display: Display::Grid,
+        grid_auto_flow: GridAutoFlow::Column,
+        grid_auto_columns: vec![
+            GridTrack::max_content(),
+            GridTrack::minmax(
+                MinTrackSizingFunction::Auto,
+                MaxTrackSizingFunction::Percent(50.),
+            ),
+            GridTrack::min_content(),
+        ],
+        padding: UiRect::all(px(1.)),
+        column_gap: px(6.),
+        ..default()
+    }
+}
+
 fn handle_enum_variant(
     ui_context: &ComponentUiContext,
     newdata: EnumMetadata,
@@ -1149,26 +1207,12 @@ fn handle_enum_variant(
         VariantType::Struct => {
             commands
                 .entity(structured_variant_layout_container)
-                .insert(Node {
-                    min_width: percent(10.),
-                    ..default()
-                })
-                .insert(BackgroundColor::from(Srgba::BLACK));
+                .insert(field_layout());
             let v_struct_info = v_info.as_struct_variant().unwrap();
             commands
                 .entity(structured_variant_layout_container)
                 .with_child(field_name_with_type(v_info.name(), ""));
 
-            let field_layout = commands
-                .spawn((Node {
-                    display: Display::Grid,
-                    row_gap: px(2.0),
-                    ..default()
-                },))
-                .id();
-            commands
-                .entity(structured_variant_layout_container)
-                .add_child(field_layout);
             for &field_name in v_struct_info.field_names() {
                 let field_type_info = v_struct_info
                     .field(field_name)
@@ -1176,7 +1220,7 @@ fn handle_enum_variant(
                     .unwrap();
                 ui_context.step(
                     ComponentUiStepContext {
-                        local_ui_focus: field_layout,
+                        local_ui_focus: structured_variant_layout_container,
                         local_type_info: field_type_info,
                         local_path: format!("{}.{field_name}", newdata.path_string),
                         local_name: field_name.to_string(),
@@ -1189,24 +1233,11 @@ fn handle_enum_variant(
             let v_tuple_info = v_info.as_tuple_variant().unwrap();
             commands
                 .entity(structured_variant_layout_container)
-                .insert(Node {
-                    min_width: percent(10.),
-                    ..default()
-                });
+                .insert(field_layout());
             commands
                 .entity(structured_variant_layout_container)
                 .with_child(field_name_with_type(v_info.name(), ""));
 
-            let field_layout = commands
-                .spawn((Node {
-                    display: Display::Grid,
-                    row_gap: px(2.0),
-                    ..default()
-                },))
-                .id();
-            commands
-                .entity(structured_variant_layout_container)
-                .add_child(field_layout);
             for unnamed in v_tuple_info.iter() {
                 let field_name = unnamed.index().to_string();
                 let field_type_info = v_tuple_info
@@ -1215,7 +1246,7 @@ fn handle_enum_variant(
                     .unwrap();
                 ui_context.step(
                     ComponentUiStepContext {
-                        local_ui_focus: field_layout,
+                        local_ui_focus: structured_variant_layout_container,
                         local_type_info: field_type_info,
                         local_path: format!("{}.{field_name}", newdata.path_string),
                         local_name: field_name.to_string(),
@@ -1466,23 +1497,34 @@ pub struct WorldTarget {
 }
 impl WorldTarget {
     pub fn ui_root(&self) -> Entity {
-	self.entity_ui_root
+        self.entity_ui_root
     }
 }
 fn on_entity_ui_root_add(mut world: DeferredWorld, context: HookContext) {
-    let world_target = world.entity(context.entity).get::<EntityUiRoot>().unwrap().world_target;
-    
-    world.commands().entity(world_target).insert(
-	WorldTarget {
-	    entity_ui_root: context.entity
-	});
+    let world_target = world
+        .entity(context.entity)
+        .get::<EntityUiRoot>()
+        .unwrap()
+        .world_target;
+
+    world.commands().entity(world_target).insert(WorldTarget {
+        entity_ui_root: context.entity,
+    });
 }
 fn on_entity_ui_root_remove(mut world: DeferredWorld, context: HookContext) {
-    let world_target = world.entity(context.entity).get::<EntityUiRoot>().unwrap().world_target;
-    
+    let world_target = world
+        .entity(context.entity)
+        .get::<EntityUiRoot>()
+        .unwrap()
+        .world_target;
+
     world.commands().entity(world_target).try_despawn();
 }
 fn on_world_target_remove(mut world: DeferredWorld, context: HookContext) {
-    let entity_ui_root = world.entity(context.entity).get::<WorldTarget>().unwrap().entity_ui_root;
+    let entity_ui_root = world
+        .entity(context.entity)
+        .get::<WorldTarget>()
+        .unwrap()
+        .entity_ui_root;
     world.commands().entity(entity_ui_root).try_despawn();
 }
